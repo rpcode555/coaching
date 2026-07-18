@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { createAdminUserAccount } from "@/lib/firebase";
 import {
   getEnrollments,
   updateEnrollmentStatus,
@@ -19,20 +20,26 @@ import {
   addGalleryImage,
   deleteGalleryImage,
   uploadImage,
+  getAdmins,
+  addAdminUser,
+  deleteAdminUser,
   Enrollment,
   Teacher,
   Review,
   GalleryImage,
+  AdminUser,
 } from "@/lib/db";
 
-type Tab = "enrollments" | "teachers" | "reviews" | "gallery";
+type Tab = "enrollments" | "teachers" | "reviews" | "gallery" | "admins";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "enrollments", label: "📋 Enrollments" },
   { key: "teachers", label: "👨‍🏫 Teachers" },
   { key: "reviews", label: "⭐ Reviews" },
   { key: "gallery", label: "🖼️ Gallery" },
+  { key: "admins", label: "👑 Admin Users" },
 ];
+
 
 /* ═══════════════════════════════════════════
    Admin Page (root)
@@ -41,10 +48,18 @@ const TABS: { key: Tab; label: string }[] = [
 export default function AdminPage() {
   const { user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("enrollments");
+  const [adminList, setAdminList] = useState<AdminUser[]>([]);
+
+  useEffect(() => {
+    getAdmins().then(setAdminList).catch(() => {});
+  }, []);
 
   const adminEmail = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "palranjan144@gmail.com").trim().toLowerCase();
   const userEmail = user?.email?.trim().toLowerCase();
-  const isAdmin = !!userEmail && userEmail === adminEmail;
+  const isSuperAdmin = !!userEmail && userEmail === adminEmail;
+  const isDbAdmin = !!userEmail && adminList.some((a) => a.email.toLowerCase() === userEmail);
+  const isAdmin = isSuperAdmin || isDbAdmin;
+
 
   if (loading) {
     return (
@@ -122,7 +137,9 @@ export default function AdminPage() {
         {activeTab === "teachers" && <TeachersTab />}
         {activeTab === "reviews" && <ReviewsTab />}
         {activeTab === "gallery" && <GalleryTab />}
+        {activeTab === "admins" && <AdminsTab currentUserEmail={user?.email || ""} superAdminEmail={adminEmail} />}
       </main>
+
     </div>
   );
 }
@@ -890,6 +907,243 @@ function formatDate(timestamp: { toDate?: () => Date } | null | undefined): stri
   } catch {
     return "Just now";
   }
+}
+
+/* ═══════════════════════════════════════════
+   ADMIN USERS TAB
+   ═══════════════════════════════════════════ */
+
+function AdminsTab({
+  currentUserEmail,
+  superAdminEmail,
+}: {
+  currentUserEmail: string;
+  superAdminEmail: string;
+}) {
+  const [admins, setAdmins] = useState<AdminUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function load() {
+    try {
+      setAdmins(await getAdmins());
+    } catch {
+      setError("Failed to load admin users");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.email || !form.password) {
+      setError("Email and password are required");
+      return;
+    }
+    if (form.password.length < 6) {
+      setError("Password must be at least 6 characters long");
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      await createAdminUserAccount(form.email, form.password, form.name);
+      await addAdminUser({
+        email: form.email,
+        name: form.name,
+        createdBy: currentUserEmail || "admin",
+      });
+
+      setSuccess(`Admin user ${form.email} created successfully! They can now log in.`);
+      setForm({ name: "", email: "", password: "" });
+      load();
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      setError(e.message || "Failed to create admin user");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function removeAdmin(id: string, email: string) {
+    if (email.toLowerCase() === superAdminEmail.toLowerCase()) {
+      alert("Cannot delete primary superadmin!");
+      return;
+    }
+    if (!confirm(`Remove admin access for ${email}?`)) return;
+
+    try {
+      await deleteAdminUser(id);
+      setAdmins((prev) => prev.filter((a) => a.id !== id));
+      setSuccess(`Removed admin ${email}`);
+    } catch {
+      alert("Failed to delete admin user");
+    }
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* ── Add Admin Form ── */}
+      <div className="glass-card p-6 sm:p-8 rounded-2xl border border-white/10">
+        <h2 className="text-xl font-bold text-navy-100 mb-1 flex items-center gap-2">
+          <span>👑</span> Add New Admin User
+        </h2>
+        <p className="text-navy-400 text-xs mb-6">
+          Create an email & password account for a co-admin or staff member to manage this dashboard.
+        </p>
+
+        {error && (
+          <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
+            <span>⚠️</span> {error}
+          </div>
+        )}
+        {success && (
+          <div className="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
+            <span>✅</span> {success}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-navy-300 mb-1">
+              Full Name
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Rahul Sharma"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className="input-field"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-navy-300 mb-1">
+              Email Address *
+            </label>
+            <input
+              type="email"
+              placeholder="admin@example.com"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              className="input-field"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-navy-300 mb-1">
+              Password (min 6 chars) *
+            </label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              className="input-field"
+              required
+              minLength={6}
+            />
+          </div>
+
+          <div className="md:col-span-3 flex justify-end">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn-primary text-sm !py-2.5 px-6 disabled:opacity-50"
+            >
+              <span>{submitting ? "Creating Admin..." : "Add Admin User"}</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* ── Admin Users List Table ── */}
+      <div className="glass-card rounded-2xl border border-white/10 overflow-hidden">
+        <div className="p-6 border-b border-white/5 flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-navy-100">Authorized Admin Accounts</h3>
+            <p className="text-navy-400 text-xs mt-0.5">Users permitted to access this dashboard</p>
+          </div>
+          <span className="px-3 py-1 rounded-full bg-gold-500/10 text-gold-400 border border-gold-500/20 text-xs font-semibold">
+            {admins.length + 1} Admin{admins.length === 0 ? "" : "s"}
+          </span>
+        </div>
+
+        {loading ? (
+          <LoadingSpinner label="Loading admin accounts..." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-navy-900/60 text-navy-400 uppercase text-[10px] tracking-wider border-b border-white/5">
+                <tr>
+                  <th className="py-3.5 px-6 font-semibold">Admin User</th>
+                  <th className="py-3.5 px-6 font-semibold">Role / Status</th>
+                  <th className="py-3.5 px-6 font-semibold">Added By</th>
+                  <th className="py-3.5 px-6 font-semibold text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5 text-navy-200">
+                {/* Superadmin Primary Account */}
+                <tr className="hover:bg-white/[0.02]">
+                  <td className="py-4 px-6">
+                    <div className="font-semibold text-gold-300">{superAdminEmail}</div>
+                    <div className="text-xs text-navy-400">Primary Super Admin</div>
+                  </td>
+                  <td className="py-4 px-6">
+                    <span className="px-2.5 py-1 rounded-full bg-gold-500/10 text-gold-400 border border-gold-500/20 text-xs font-medium">
+                      Superadmin
+                    </span>
+                  </td>
+                  <td className="py-4 px-6 text-xs text-navy-400">System Default</td>
+                  <td className="py-4 px-6 text-right">
+                    <span className="text-xs text-navy-500 italic">Protected</span>
+                  </td>
+                </tr>
+
+                {/* Additional Admins from MongoDB */}
+                {admins.map((adm) => (
+                  <tr key={adm.id} className="hover:bg-white/[0.02]">
+                    <td className="py-4 px-6">
+                      <div className="font-semibold text-navy-100">{adm.name || "Admin User"}</div>
+                      <div className="text-xs text-navy-400">{adm.email}</div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className="px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-medium">
+                        Admin
+                      </span>
+                    </td>
+                    <td className="py-4 px-6 text-xs text-navy-400">{adm.createdBy || "Admin"}</td>
+                    <td className="py-4 px-6 text-right">
+                      {adm.email.toLowerCase() !== superAdminEmail.toLowerCase() && (
+                        <button
+                          onClick={() => removeAdmin(adm.id, adm.email)}
+                          className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-medium border border-red-500/20 transition-all"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 /* ═══════════════════════════════════════════

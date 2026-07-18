@@ -25,4 +25,26 @@ const googleProvider = new GoogleAuthProvider();
 const db = getFirestore(app);
 const storage = getStorage(app);
 
-export { app, auth, googleProvider, db, storage };
+/**
+ * Creates a Firebase Auth user account without terminating the currently active Admin session.
+ */
+export async function createAdminUserAccount(email: string, password: string, name: string) {
+  const { createUserWithEmailAndPassword, updateProfile, signOut: secondarySignOut } = await import("firebase/auth");
+  const secondaryAppName = `SecondaryAdminAuth_${Date.now()}`;
+  const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+  const secondaryAuth = getAuth(secondaryApp);
+
+  try {
+    const res = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    if (name) {
+      await updateProfile(res.user, { displayName: name });
+    }
+    await secondarySignOut(secondaryAuth);
+    return res.user;
+  } finally {
+    // Delete secondary app instance if possible or leave for GC
+  }
+}
+
+export { app, auth, googleProvider, db, storage, firebaseConfig };
+

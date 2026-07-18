@@ -250,3 +250,63 @@ export async function deleteGalleryImage(id: string): Promise<void> {
 
 // Export image upload helpers from firestore/storage
 export { uploadImage, deleteFromStorage } from "./firestore";
+
+/* ═══════════════════════════════════════════
+   Admin Users
+   ═══════════════════════════════════════════ */
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export async function getAdmins(): Promise<AdminUser[]> {
+  try {
+    const res = await fetch("/api/admins");
+    if (res.ok) {
+      const items = await res.json();
+      if (Array.isArray(items)) {
+        return items.map((item) => ({
+          ...item,
+          id: item._id || item.id,
+        }));
+      }
+    }
+  } catch (err) {
+    console.warn("MongoDB API getAdmins error:", err);
+  }
+  return [];
+}
+
+export async function addAdminUser(
+  data: { email: string; name: string; createdBy?: string }
+): Promise<string> {
+  try {
+    const res = await fetch("/api/admins", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      return json.id || json._id;
+    }
+  } catch (err) {
+    console.warn("MongoDB API addAdminUser error:", err);
+  }
+  return "";
+}
+
+export async function deleteAdminUser(id: string): Promise<void> {
+  try {
+    await fetch(`/api/admins/${id}`, {
+      method: "DELETE",
+    });
+  } catch (err) {
+    console.warn("MongoDB API deleteAdminUser error:", err);
+  }
+}
+
