@@ -260,6 +260,8 @@ export interface AdminUser {
   email: string;
   name: string;
   createdBy: string;
+  loginCount?: number;
+  lastLoginAt?: string;
   createdAt: string;
 }
 
@@ -300,6 +302,21 @@ export async function addAdminUser(
   return "";
 }
 
+export async function trackAdminLogin(
+  email: string,
+  name?: string
+): Promise<void> {
+  try {
+    await fetch("/api/admins/track-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, name }),
+    });
+  } catch (err) {
+    console.warn("MongoDB API trackAdminLogin error:", err);
+  }
+}
+
 export async function deleteAdminUser(id: string): Promise<void> {
   try {
     await fetch(`/api/admins/${id}`, {
@@ -309,4 +326,5 @@ export async function deleteAdminUser(id: string): Promise<void> {
     console.warn("MongoDB API deleteAdminUser error:", err);
   }
 }
+
 

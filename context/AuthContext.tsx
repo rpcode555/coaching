@@ -16,6 +16,7 @@ import {
   getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut as firebaseSignOut,
   updateProfile,
 } from "firebase/auth";
@@ -32,6 +33,7 @@ interface AuthContextType {
     password: string,
     name: string,
   ) => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   clearError: () => void;
 }
@@ -157,6 +159,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const sendPasswordReset = useCallback(async (email: string) => {
+    try {
+      setError(null);
+      await sendPasswordResetEmail(auth, email);
+    } catch (err: unknown) {
+      const firebaseError = err as { code?: string; message?: string };
+      setError(
+        getErrorMessage(firebaseError.code || "") ||
+          firebaseError.message ||
+          "Failed to send password reset email",
+      );
+      throw err;
+    }
+  }, []);
+
   const signOut = useCallback(async () => {
     try {
       await firebaseSignOut(auth);
@@ -175,6 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signInWithGoogle,
         signInWithEmail,
         signUpWithEmail,
+        sendPasswordReset,
         signOut,
         clearError,
       }}

@@ -23,6 +23,7 @@ import {
   getAdmins,
   addAdminUser,
   deleteAdminUser,
+  trackAdminLogin,
   Enrollment,
   Teacher,
   Review,
@@ -59,6 +60,13 @@ export default function AdminPage() {
   const isSuperAdmin = !!userEmail && userEmail === adminEmail;
   const isDbAdmin = !!userEmail && adminList.some((a) => a.email.toLowerCase() === userEmail);
   const isAdmin = isSuperAdmin || isDbAdmin;
+
+  useEffect(() => {
+    if (isAdmin && userEmail) {
+      trackAdminLogin(userEmail, user?.displayName || "Admin").catch(() => {});
+    }
+  }, [isAdmin, userEmail, user?.displayName]);
+
 
 
   if (loading) {
@@ -992,8 +1000,42 @@ function AdminsTab({
     }
   }
 
+  const totalAdminsCount = admins.length + 1;
+  const totalLoginsCount = admins.reduce((sum, a) => sum + (a.loginCount || 0), 0);
+
   return (
     <div className="space-y-8">
+      {/* ── Summary Stats Cards ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="glass-card p-6 rounded-2xl border border-white/10 flex items-center justify-between">
+          <div>
+            <div className="text-xs text-navy-400 font-medium uppercase tracking-wider">
+              Total Admins Created
+            </div>
+            <div className="text-3xl font-extrabold text-navy-100 mt-1">
+              {totalAdminsCount}
+            </div>
+          </div>
+          <div className="w-12 h-12 rounded-xl bg-gold-500/10 border border-gold-500/20 flex items-center justify-center text-xl text-gold-400">
+            👑
+          </div>
+        </div>
+
+        <div className="glass-card p-6 rounded-2xl border border-white/10 flex items-center justify-between">
+          <div>
+            <div className="text-xs text-navy-400 font-medium uppercase tracking-wider">
+              Total Logins Recorded
+            </div>
+            <div className="text-3xl font-extrabold text-navy-100 mt-1">
+              {totalLoginsCount}
+            </div>
+          </div>
+          <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-xl text-blue-400">
+            🔑
+          </div>
+        </div>
+      </div>
+
       {/* ── Add Admin Form ── */}
       <div className="glass-card p-6 sm:p-8 rounded-2xl border border-white/10">
         <h2 className="text-xl font-bold text-navy-100 mb-1 flex items-center gap-2">
@@ -1077,7 +1119,7 @@ function AdminsTab({
             <p className="text-navy-400 text-xs mt-0.5">Users permitted to access this dashboard</p>
           </div>
           <span className="px-3 py-1 rounded-full bg-gold-500/10 text-gold-400 border border-gold-500/20 text-xs font-semibold">
-            {admins.length + 1} Admin{admins.length === 0 ? "" : "s"}
+            {totalAdminsCount} Admin{totalAdminsCount === 1 ? "" : "s"}
           </span>
         </div>
 
@@ -1091,6 +1133,8 @@ function AdminsTab({
                   <th className="py-3.5 px-6 font-semibold">Admin User</th>
                   <th className="py-3.5 px-6 font-semibold">Role / Status</th>
                   <th className="py-3.5 px-6 font-semibold">Added By</th>
+                  <th className="py-3.5 px-6 font-semibold">Login Count</th>
+                  <th className="py-3.5 px-6 font-semibold">Last Login</th>
                   <th className="py-3.5 px-6 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
@@ -1107,36 +1151,52 @@ function AdminsTab({
                     </span>
                   </td>
                   <td className="py-4 px-6 text-xs text-navy-400">System Default</td>
+                  <td className="py-4 px-6 text-xs font-semibold text-gold-400">
+                    {admins.find(a => a.email.toLowerCase() === superAdminEmail.toLowerCase())?.loginCount || 1} logins
+                  </td>
+                  <td className="py-4 px-6 text-xs text-navy-400">
+                    {admins.find(a => a.email.toLowerCase() === superAdminEmail.toLowerCase())?.lastLoginAt
+                      ? new Date(admins.find(a => a.email.toLowerCase() === superAdminEmail.toLowerCase())!.lastLoginAt!).toLocaleString("en-IN")
+                      : "Active Now"}
+                  </td>
                   <td className="py-4 px-6 text-right">
                     <span className="text-xs text-navy-500 italic">Protected</span>
                   </td>
                 </tr>
 
                 {/* Additional Admins from MongoDB */}
-                {admins.map((adm) => (
-                  <tr key={adm.id} className="hover:bg-white/[0.02]">
-                    <td className="py-4 px-6">
-                      <div className="font-semibold text-navy-100">{adm.name || "Admin User"}</div>
-                      <div className="text-xs text-navy-400">{adm.email}</div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className="px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-medium">
-                        Admin
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 text-xs text-navy-400">{adm.createdBy || "Admin"}</td>
-                    <td className="py-4 px-6 text-right">
-                      {adm.email.toLowerCase() !== superAdminEmail.toLowerCase() && (
+                {admins
+                  .filter((a) => a.email.toLowerCase() !== superAdminEmail.toLowerCase())
+                  .map((adm) => (
+                    <tr key={adm.id} className="hover:bg-white/[0.02]">
+                      <td className="py-4 px-6">
+                        <div className="font-semibold text-navy-100">{adm.name || "Admin User"}</div>
+                        <div className="text-xs text-navy-400">{adm.email}</div>
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className="px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-medium">
+                          Admin
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 text-xs text-navy-400">{adm.createdBy || "Admin"}</td>
+                      <td className="py-4 px-6 text-xs font-semibold text-navy-200">
+                        {adm.loginCount || 0} logins
+                      </td>
+                      <td className="py-4 px-6 text-xs text-navy-400">
+                        {adm.lastLoginAt
+                          ? new Date(adm.lastLoginAt).toLocaleString("en-IN")
+                          : "Not logged in yet"}
+                      </td>
+                      <td className="py-4 px-6 text-right">
                         <button
                           onClick={() => removeAdmin(adm.id, adm.email)}
                           className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-medium border border-red-500/20 transition-all"
                         >
                           Remove
                         </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
@@ -1157,7 +1217,13 @@ function AdminLoginForm({ adminEmail }: { adminEmail: string }) {
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState("");
 
-  const { user, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, error, clearError } = useAuth();
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
+  const [resetError, setResetError] = useState("");
+  const [sendingReset, setSendingReset] = useState(false);
+
+  const { user, signInWithGoogle, signInWithEmail, signUpWithEmail, sendPasswordReset, signOut, error, clearError } = useAuth();
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1186,6 +1252,22 @@ function AdminLoginForm({ adminEmail }: { adminEmail: string }) {
     }
   };
 
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetEmail) return;
+    setSendingReset(true);
+    setResetMessage("");
+    setResetError("");
+    try {
+      await sendPasswordReset(resetEmail);
+      setResetMessage("Password reset email sent! Check your inbox for reset instructions.");
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      setResetError(e.message || "Failed to send password reset link.");
+    } finally {
+      setSendingReset(false);
+    }
+  };
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -1246,8 +1328,65 @@ function AdminLoginForm({ adminEmail }: { adminEmail: string }) {
                 </Link>
               </div>
             </div>
+          ) : isForgotPassword ? (
+            /* Forgot Password Form */
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-lg font-bold text-navy-100">Reset Admin Password</h3>
+                <p className="text-navy-400 text-xs mt-1">
+                  Enter your admin email address to receive a secure password reset link.
+                </p>
+              </div>
+
+              {resetMessage && (
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
+                  <span>✅</span> {resetMessage}
+                </div>
+              )}
+              {resetError && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
+                  <span>⚠️</span> {resetError}
+                </div>
+              )}
+
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-navy-300 mb-1.5">
+                    Admin Email Address
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="admin@email.com"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    className="input-field"
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={sendingReset}
+                  className="w-full btn-primary !py-3 text-sm font-semibold disabled:opacity-50"
+                >
+                  <span>{sendingReset ? "Sending Reset Email..." : "Send Reset Link"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForgotPassword(false);
+                    setResetMessage("");
+                    setResetError("");
+                  }}
+                  className="w-full text-center text-xs text-navy-400 hover:text-gold-400 transition-colors mt-2"
+                >
+                  ← Back to Login
+                </button>
+              </form>
+            </div>
           ) : (
-            /* Login Form */
+            /* Standard Login Form */
             <div className="space-y-6">
               {/* Google Sign In */}
               <button
@@ -1289,7 +1428,19 @@ function AdminLoginForm({ adminEmail }: { adminEmail: string }) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-navy-300 mb-1.5">Password</label>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-xs font-medium text-navy-300">Password</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResetEmail(email);
+                        setIsForgotPassword(true);
+                      }}
+                      className="text-xs text-gold-400 hover:text-gold-300 transition-colors"
+                    >
+                      Forgot Password?
+                    </button>
+                  </div>
                   <div className="relative">
                     <input
                       type={showPassword ? "text" : "password"}
@@ -1337,3 +1488,4 @@ function AdminLoginForm({ adminEmail }: { adminEmail: string }) {
     </div>
   );
 }
+
