@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { addEnrollment } from "@/lib/firestore";
+import { addEnrollment } from "@/lib/db";
 
 interface EnrollmentModalProps {
   isOpen: boolean;

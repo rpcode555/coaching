@@ -12,7 +12,7 @@ import {
   Teacher,
   Review,
   GalleryImage,
-} from "@/lib/firestore";
+} from "@/lib/db";
 
 /* ═══════════════════════════════════════════
    Hooks

@@ -23,7 +23,7 @@ import {
   Teacher,
   Review,
   GalleryImage,
-} from "@/lib/firestore";
+} from "@/lib/db";
 
 type Tab = "enrollments" | "teachers" | "reviews" | "gallery";
 
