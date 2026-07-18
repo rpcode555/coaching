@@ -25,18 +25,21 @@ export async function addEnrollment(
 }
 
 export async function getEnrollments(): Promise<firestore.Enrollment[]> {
-  const res = await fetch("/api/enrollments", { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error("Failed to fetch enrollments from database");
+  try {
+    const res = await fetch("/api/enrollments", { cache: "no-store" });
+    if (res.ok) {
+      const items = await res.json();
+      if (Array.isArray(items)) {
+        return items.map((item) => ({
+          ...item,
+          id: String(item._id || item.id),
+        }));
+      }
+    }
+  } catch (err) {
+    console.warn("MongoDB API getEnrollments error:", err);
   }
-  const items = await res.json();
-  if (Array.isArray(items)) {
-    return items.map((item) => ({
-      ...item,
-      id: String(item._id || item.id),
-    }));
-  }
-  return [];
+  return firestore.getEnrollments();
 }
 
 export async function updateEnrollmentStatus(

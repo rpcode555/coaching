@@ -15,11 +15,11 @@ export interface IEnrollment extends Document {
 
 const EnrollmentSchema = new Schema<IEnrollment>(
   {
-    name: { type: String, required: true },
+    name: { type: String, default: "Student" },
     guardianName: { type: String, default: "" },
-    phone: { type: String, required: true },
+    phone: { type: String, default: "" },
     email: { type: String, default: "" },
-    course: { type: String, required: true },
+    course: { type: String, default: "General Coaching" },
     className: { type: String, default: "" },
     address: { type: String, default: "" },
     message: { type: String, default: "" },

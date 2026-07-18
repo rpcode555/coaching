@@ -21,17 +21,17 @@ export async function POST(req: Request) {
     await connectToDatabase();
     const body = await req.json();
     const newEnrollment = await Enrollment.create({
-      name: body.name || "",
+      name: body.name || "Student",
       guardianName: body.guardianName || "",
       phone: body.phone || "",
       email: body.email || "",
-      course: body.course || "",
+      course: body.course || "General Coaching",
       className: body.className || "",
       address: body.address || "",
       message: body.message || "",
       status: "new",
     });
-    return NextResponse.json({ id: newEnrollment._id, ...newEnrollment.toObject() }, { status: 201 });
+    return NextResponse.json({ id: String(newEnrollment._id), ...newEnrollment.toObject() }, { status: 201 });
   } catch (error: unknown) {
     const err = error as Error;
     return NextResponse.json(
