@@ -9,21 +9,50 @@ export type { Enrollment, Teacher, Review, GalleryImage } from "./firestore";
 export async function addEnrollment(
   data: Omit<firestore.Enrollment, "id" | "status" | "createdAt">
 ): Promise<string> {
-  try {
-    const res = await fetch("/api/enrollments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    if (res.ok) {
-      const json = await res.json();
-      return json.id || json._id;
-    }
-  } catch (err) {
-    console.warn("MongoDB API error, falling back to Firestore/LocalStorage:", err);
+  const localId = "local_" + Date.now();
+  const cleanItem = {
+    id: localId,
+    name: data.name || "",
+    guardianName: data.guardianName || "",
+    phone: data.phone || "",
+    email: data.email || "",
+    course: data.course || "",
+    className: data.className || "",
+    address: data.address || "",
+    message: data.message || "",
+    status: "new" as const,
+    createdAt: new Date().toISOString(),
+  };
+
+  if (typeof window !== "undefined") {
+    try {
+      const existing = JSON.parse(localStorage.getItem("safalya_enrollments") || "[]");
+      existing.unshift(cleanItem);
+      localStorage.setItem("safalya_enrollments", JSON.stringify(existing));
+    } catch {}
   }
-  return firestore.addEnrollment(data);
+
+  fetch("/api/enrollments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  })
+    .then((res) => {
+      if (res.ok) {
+        if (typeof window !== "undefined") {
+          try {
+            const list = JSON.parse(localStorage.getItem("safalya_enrollments") || "[]");
+            const updated = list.filter((i: { id: string }) => i.id !== localId);
+            localStorage.setItem("safalya_enrollments", JSON.stringify(updated));
+          } catch {}
+        }
+      }
+    })
+    .catch(() => {});
+
+  return localId;
 }
+
 
 export async function getEnrollments(): Promise<firestore.Enrollment[]> {
   let mongoItems: firestore.Enrollment[] = [];
