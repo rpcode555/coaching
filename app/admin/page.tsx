@@ -1157,7 +1157,7 @@ function AdminLoginForm({ adminEmail }: { adminEmail: string }) {
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState("");
 
-  const { user, signInWithGoogle, signInWithEmail, signOut, error, clearError } = useAuth();
+  const { user, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, error, clearError } = useAuth();
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1166,12 +1166,26 @@ function AdminLoginForm({ adminEmail }: { adminEmail: string }) {
     clearError();
     try {
       await signInWithEmail(email, password);
-    } catch {
-      // Error handled by AuthContext or error state
+    } catch (err: unknown) {
+      const firebaseErr = err as { code?: string; message?: string };
+      // Auto-register superadmin if account doesn't exist yet in Firebase Auth
+      if (
+        (firebaseErr.code === "auth/user-not-found" ||
+          firebaseErr.code === "auth/invalid-credential") &&
+        email.trim().toLowerCase() === adminEmail
+      ) {
+        try {
+          await signUpWithEmail(email, password, "Super Admin");
+          return;
+        } catch {
+          // Keep original error
+        }
+      }
     } finally {
       setLoading(false);
     }
   };
+
 
   const handleGoogleLogin = async () => {
     setLoading(true);
