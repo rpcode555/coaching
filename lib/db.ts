@@ -26,20 +26,39 @@ export async function addEnrollment(
 }
 
 export async function getEnrollments(): Promise<firestore.Enrollment[]> {
+  let mongoItems: firestore.Enrollment[] = [];
   try {
     const res = await fetch("/api/enrollments");
     if (res.ok) {
       const items = await res.json();
-      if (Array.isArray(items) && items.length > 0) {
-        return items.map((item) => ({
+      if (Array.isArray(items)) {
+        mongoItems = items.map((item) => ({
           ...item,
           id: item._id || item.id,
         }));
       }
     }
   } catch (err) {
-    console.warn("MongoDB API fetch error, falling back to Firestore:", err);
+    console.warn("MongoDB API fetch error, checking local storage:", err);
   }
+
+  let localItems: firestore.Enrollment[] = [];
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem("safalya_enrollments");
+      if (raw) {
+        localItems = JSON.parse(raw);
+      }
+    } catch {}
+  }
+
+  const mongoIds = new Set(mongoItems.map((i) => i.id));
+  const uniqueLocal = localItems.filter((i) => !mongoIds.has(i.id));
+
+  if (mongoItems.length > 0 || uniqueLocal.length > 0) {
+    return [...uniqueLocal, ...mongoItems];
+  }
+
   return firestore.getEnrollments();
 }
 
@@ -81,7 +100,7 @@ export async function getTeachers(): Promise<firestore.Teacher[]> {
     const res = await fetch("/api/teachers");
     if (res.ok) {
       const items = await res.json();
-      if (Array.isArray(items) && items.length > 0) {
+      if (Array.isArray(items)) {
         return items.map((item) => ({
           ...item,
           id: item._id || item.id,
@@ -151,7 +170,7 @@ export async function getReviews(): Promise<firestore.Review[]> {
     const res = await fetch("/api/reviews");
     if (res.ok) {
       const items = await res.json();
-      if (Array.isArray(items) && items.length > 0) {
+      if (Array.isArray(items)) {
         return items.map((item) => ({
           ...item,
           id: item._id || item.id,
@@ -204,7 +223,7 @@ export async function getGalleryImages(): Promise<firestore.GalleryImage[]> {
     const res = await fetch("/api/gallery");
     if (res.ok) {
       const items = await res.json();
-      if (Array.isArray(items) && items.length > 0) {
+      if (Array.isArray(items)) {
         return items.map((item) => ({
           ...item,
           id: item._id || item.id,
