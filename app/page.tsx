@@ -158,30 +158,6 @@ const features = [
   },
 ];
 
-const defaultTeachers = [
-  {
-    name: "Prasenjit Pal",
-    subject: "English",
-    qualification: "B.Ed.",
-    experience: "20+ Years of Teaching Experience",
-    photoURL: "",
-  },
-  {
-    name: "Lalan Mandal",
-    subject: "Science",
-    qualification: "",
-    experience: "15+ Years of Teaching Experience",
-    photoURL: "",
-  },
-  {
-    name: "Makhan Maji",
-    subject: "Bengali, Geography & History",
-    qualification: "",
-    experience: "18+ Years of Teaching Experience",
-    photoURL: "",
-  },
-];
-
 const defaultCoursesData = [
   { title: "Foundation", classes: "Class 5 \u2013 7", description: "Build strong fundamentals and develop a love for learning from an early age.", subjects: ["Mathematics", "Science", "English", "Bengali"], color: "from-emerald-500/20 to-teal-500/10", accent: "text-emerald-400", border: "border-emerald-500/20", icon: "\uD83C\uDF31" },
   { title: "Madhyamik Prep", classes: "Class 8 \u2013 10", description: "Comprehensive preparation for board exams with focus on concept clarity.", subjects: ["Mathematics", "Physical Science", "Life Science", "English", "Bengali"], color: "from-blue-500/20 to-indigo-500/10", accent: "text-blue-400", border: "border-blue-500/20", icon: "\uD83D\uDCDA" },
@@ -209,7 +185,7 @@ const defaultTestimonials = [
 export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [showEnrollModal, setShowEnrollModal] = useState(false);
-  const [extraTeachers, setExtraTeachers] = useState<Teacher[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [extraReviews, setExtraReviews] = useState<Review[]>([]);
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [dbCourses, setDbCourses] = useState<Course[]>([]);
@@ -221,13 +197,13 @@ export default function Home() {
 
   async function loadDynamicData() {
     try {
-      const [teachers, reviews, images, courses] = await Promise.all([
+      const [fetchedTeachers, reviews, images, courses] = await Promise.all([
         getTeachers().catch(() => []),
         getReviews().catch(() => []),
         getGalleryImages().catch(() => []),
         getCourses().catch(() => []),
       ]);
-      setExtraTeachers(teachers);
+      setTeachers(fetchedTeachers);
       setExtraReviews(reviews);
       setGalleryImages(images);
       setDbCourses(courses);
@@ -238,17 +214,7 @@ export default function Home() {
 
   const coursesData = dbCourses.length > 0 ? dbCourses : defaultCoursesData;
 
-  /* Merge hardcoded + Firestore teachers */
-  const allTeachers = [
-    ...defaultTeachers,
-    ...extraTeachers.map((t) => ({
-      name: t.name,
-      subject: t.subject,
-      qualification: t.qualification,
-      experience: t.experience,
-      photoURL: t.photoURL,
-    })),
-  ];
+  const allTeachers = teachers;
 
   /* Merge hardcoded + Firestore reviews */
   const allTestimonials = [
