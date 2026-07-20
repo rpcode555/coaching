@@ -12,7 +12,7 @@ export async function PATCH(
     const body = await req.json();
     const updated = await Enrollment.findByIdAndUpdate(
       id,
-      { status: body.status },
+      body,
       { new: true }
     );
     if (!updated) {

@@ -61,6 +61,20 @@ export async function updateEnrollmentStatus(
   }
 }
 
+export async function updateEnrollment(
+  id: string,
+  data: Partial<Enrollment>
+): Promise<void> {
+  const res = await fetch(`/api/enrollments/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    throw new Error("Failed to update enrollment");
+  }
+}
+
 export async function deleteEnrollment(id: string): Promise<void> {
   const res = await fetch(`/api/enrollments/${id}`, {
     method: "DELETE",

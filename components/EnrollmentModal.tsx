@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { addEnrollment } from "@/lib/db";
+import { addEnrollment, getCourses } from "@/lib/db";
 
 interface EnrollmentModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const courseOptions = [
+const defaultCourseOptions = [
   "Foundation (Class 5-7)",
   "Madhyamik Prep (Class 8-10)",
   "Higher Secondary (Class 11-12)",
@@ -31,6 +31,17 @@ export default function EnrollmentModal({ isOpen, onClose }: EnrollmentModalProp
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [dynamicCourses, setDynamicCourses] = useState<string[]>([]);
+
+  useEffect(() => {
+    getCourses()
+      .then((courses) => {
+        if (courses.length > 0) {
+          setDynamicCourses(courses.map((c) => (c.classes ? `${c.title} (${c.classes})` : c.title)));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Close on Escape & lock scroll
   useEffect(() => {
@@ -190,7 +201,7 @@ export default function EnrollmentModal({ isOpen, onClose }: EnrollmentModalProp
                     required
                   >
                     <option value="">Select Course *</option>
-                    {courseOptions.map((c) => (
+                    {(dynamicCourses.length > 0 ? dynamicCourses : defaultCourseOptions).map((c) => (
                       <option key={c} value={c}>
                         {c}
                       </option>

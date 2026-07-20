@@ -8,6 +8,7 @@ import { createAdminUserAccount } from "@/lib/firebase";
 import {
   getEnrollments,
   updateEnrollmentStatus,
+  updateEnrollment,
   deleteEnrollment,
   getTeachers,
   addTeacher,
@@ -169,6 +170,19 @@ function EnrollmentsTab() {
   const [items, setItems] = useState<Enrollment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    guardianName: "",
+    phone: "",
+    email: "",
+    course: "",
+    className: "",
+    address: "",
+    message: "",
+    status: "new",
+  });
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -199,6 +213,36 @@ function EnrollmentsTab() {
     }
   }
 
+  function startEdit(e: Enrollment) {
+    setEditingId(e.id);
+    setEditForm({
+      name: e.name || "",
+      guardianName: e.guardianName || "",
+      phone: e.phone || "",
+      email: e.email || "",
+      course: e.course || "",
+      className: e.className || "",
+      address: e.address || "",
+      message: e.message || "",
+      status: e.status || "new",
+    });
+  }
+
+  async function handleEdit(evt: React.FormEvent) {
+    evt.preventDefault();
+    if (!editingId) return;
+    setEditSubmitting(true);
+    try {
+      await updateEnrollment(editingId, editForm as Partial<Enrollment>);
+      setEditingId(null);
+      await load();
+    } catch {
+      alert("Failed to update enrollment");
+    } finally {
+      setEditSubmitting(false);
+    }
+  }
+
   async function remove(id: string) {
     if (!confirm("Delete this enrollment? This cannot be undone.")) return;
     try {
@@ -216,7 +260,7 @@ function EnrollmentsTab() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-white">
-          Enrollments{" "}
+          Student Enrollments{" "}
           <span className="text-navy-400 text-sm font-normal">
             ({items.length})
           </span>
@@ -231,62 +275,105 @@ function EnrollmentsTab() {
       ) : (
         <div className="space-y-4">
           {items.map((e) => (
-            <div key={e.id} className="gradient-border p-5 sm:p-6 rounded-xl">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                {/* Info */}
-                <div className="flex-1 min-w-[200px]">
-                  <h3 className="text-white font-semibold text-base">{e.name}</h3>
-                  <p className="text-navy-400 text-sm">
-                    Guardian: {e.guardianName}
-                  </p>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-navy-300">
-                    <span>📞 {e.phone}</span>
-                    {e.email && <span>✉️ {e.email}</span>}
+            <div key={e.id} className="gradient-border p-5 sm:p-6 rounded-xl relative group">
+              {editingId === e.id ? (
+                /* ── Edit Form ── */
+                <form onSubmit={handleEdit} className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input type="text" placeholder="Student Name *" value={editForm.name} onChange={(ev) => setEditForm((p) => ({ ...p, name: ev.target.value }))} className="input-field text-sm" required />
+                    <input type="text" placeholder="Guardian Name *" value={editForm.guardianName} onChange={(ev) => setEditForm((p) => ({ ...p, guardianName: ev.target.value }))} className="input-field text-sm" required />
                   </div>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {e.course && (
-                      <span className="text-xs px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                        {e.course}
-                      </span>
-                    )}
-                    {e.className && (
-                      <span className="text-xs px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                        Class: {e.className}
-                      </span>
-                    )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input type="tel" placeholder="Phone *" value={editForm.phone} onChange={(ev) => setEditForm((p) => ({ ...p, phone: ev.target.value }))} className="input-field text-sm" required />
+                    <input type="email" placeholder="Email" value={editForm.email} onChange={(ev) => setEditForm((p) => ({ ...p, email: ev.target.value }))} className="input-field text-sm" />
                   </div>
-                  {e.address && (
-                    <p className="text-navy-500 text-xs mt-2">📍 {e.address}</p>
-                  )}
-                  {e.message && (
-                    <p className="text-navy-400 text-xs mt-1 italic">
-                      &ldquo;{e.message}&rdquo;
-                    </p>
-                  )}
-                </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <input type="text" placeholder="Course" value={editForm.course} onChange={(ev) => setEditForm((p) => ({ ...p, course: ev.target.value }))} className="input-field text-sm" />
+                    <input type="text" placeholder="Class Name" value={editForm.className} onChange={(ev) => setEditForm((p) => ({ ...p, className: ev.target.value }))} className="input-field text-sm" />
+                    <select value={editForm.status} onChange={(ev) => setEditForm((p) => ({ ...p, status: ev.target.value }))} className="input-field text-sm">
+                      <option value="new">🟡 New</option>
+                      <option value="contacted">🔵 Contacted</option>
+                      <option value="enrolled">🟢 Enrolled</option>
+                    </select>
+                  </div>
+                  <textarea placeholder="Address" value={editForm.address} onChange={(ev) => setEditForm((p) => ({ ...p, address: ev.target.value }))} className="input-field text-sm" rows={2} />
+                  <textarea placeholder="Message" value={editForm.message} onChange={(ev) => setEditForm((p) => ({ ...p, message: ev.target.value }))} className="input-field text-sm" rows={2} />
+                  <div className="flex gap-2">
+                    <button type="submit" disabled={editSubmitting} className="btn-primary text-xs !py-2 !px-4 disabled:opacity-50">
+                      <span>{editSubmitting ? "Saving..." : "Save Enrollment"}</span>
+                    </button>
+                    <button type="button" onClick={() => setEditingId(null)} className="text-xs text-navy-400 hover:text-white px-3 py-2 rounded-lg hover:bg-white/5 transition-colors">
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                /* ── Display ── */
+                <>
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    {/* Info */}
+                    <div className="flex-1 min-w-[200px]">
+                      <h3 className="text-white font-semibold text-base">{e.name}</h3>
+                      <p className="text-navy-400 text-sm">
+                        Guardian: {e.guardianName}
+                      </p>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-navy-300">
+                        <span>📞 {e.phone}</span>
+                        {e.email && <span>✉️ {e.email}</span>}
+                      </div>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {e.course && (
+                          <span className="text-xs px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                            {e.course}
+                          </span>
+                        )}
+                        {e.className && (
+                          <span className="text-xs px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                            Class: {e.className}
+                          </span>
+                        )}
+                      </div>
+                      {e.address && (
+                        <p className="text-navy-500 text-xs mt-2">📍 {e.address}</p>
+                      )}
+                      {e.message && (
+                        <p className="text-navy-400 text-xs mt-1 italic">
+                          &ldquo;{e.message}&rdquo;
+                        </p>
+                      )}
+                    </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-2">
-                  <select
-                    value={e.status}
-                    onChange={(ev) => changeStatus(e.id, ev.target.value)}
-                    className={`status-select text-xs px-3 py-1.5 rounded-full border font-medium ${e.status === "new"
-                        ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
-                        : e.status === "contacted"
-                          ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
-                          : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                      }`}
-                  >
-                    <option value="new">🟡 New</option>
-                    <option value="contacted">🔵 Contacted</option>
-                    <option value="enrolled">🟢 Enrolled</option>
-                  </select>
-                  <DeleteButton onClick={() => remove(e.id)} />
-                </div>
-              </div>
-              <p className="text-navy-600 text-xs mt-3">
-                {formatDate(e.createdAt)}
-              </p>
+                    {/* Actions */}
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={e.status}
+                        onChange={(ev) => changeStatus(e.id, ev.target.value)}
+                        className={`status-select text-xs px-3 py-1.5 rounded-full border font-medium ${e.status === "new"
+                            ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                            : e.status === "contacted"
+                              ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                              : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                          }`}
+                      >
+                        <option value="new">🟡 New</option>
+                        <option value="contacted">🔵 Contacted</option>
+                        <option value="enrolled">🟢 Enrolled</option>
+                      </select>
+                      <button
+                        onClick={() => startEdit(e)}
+                        className="p-1.5 rounded-lg hover:bg-blue-500/10 text-navy-400 hover:text-blue-400 transition-colors"
+                        title="Edit Enrollment"
+                      >
+                        <EditIcon />
+                      </button>
+                      <DeleteButton onClick={() => remove(e.id)} />
+                    </div>
+                  </div>
+                  <p className="text-navy-600 text-xs mt-3">
+                    {formatDate(e.createdAt)}
+                  </p>
+                </>
+              )}
             </div>
           ))}
         </div>

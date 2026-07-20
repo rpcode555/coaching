@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { getAdmins } from "@/lib/db";
 import LoginModal from "./LoginModal";
 
 const navLinks = [
@@ -18,7 +20,27 @@ export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const { user, signOut, loading } = useAuth();
+
+  useEffect(() => {
+    if (!user?.email) {
+      setIsAdmin(false);
+      return;
+    }
+    const adminEmail = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "palranjan144@gmail.com").toLowerCase().trim();
+    const userEmail = user.email.toLowerCase().trim();
+
+    if (userEmail === adminEmail) {
+      setIsAdmin(true);
+    } else {
+      getAdmins()
+        .then((admins) => {
+          setIsAdmin(admins.some((a) => a.email.toLowerCase() === userEmail));
+        })
+        .catch(() => {});
+    }
+  }, [user]);
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 50);
@@ -100,6 +122,15 @@ export default function Navbar() {
 
             {/* ── Auth + Mobile Toggle ── */}
             <div className="flex items-center gap-3">
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gold-500/10 hover:bg-gold-500/20 text-gold-400 border border-gold-500/30 text-xs font-semibold transition-all"
+                >
+                  <span>👑</span> Admin Panel
+                </Link>
+              )}
+
               {!loading && user ? (
                 <div className="relative">
                   <button
@@ -150,12 +181,23 @@ export default function Navbar() {
                     <div className="absolute right-0 top-full mt-2 w-56 py-2 rounded-xl glass-dark shadow-xl shadow-black/30 animate-slide-down">
                       <div className="px-4 py-3 border-b border-white/10">
                         <p className="text-sm font-medium text-navy-100 truncate">
-                          {user.displayName || "Student"}
+                          {user.displayName || "User"}
                         </p>
                         <p className="text-xs text-navy-400 truncate">
                           {user.email}
                         </p>
                       </div>
+
+                      {isAdmin && (
+                        <Link
+                          href="/admin"
+                          onClick={() => setIsProfileMenuOpen(false)}
+                          className="w-full text-left px-4 py-2.5 text-sm text-gold-400 font-semibold hover:bg-white/5 transition-colors flex items-center gap-2 border-b border-white/10"
+                        >
+                          <span>👑</span> Admin Panel
+                        </Link>
+                      )}
+
                       <button
                         onClick={() => {
                           signOut();
