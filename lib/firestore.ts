@@ -30,6 +30,10 @@ export interface Enrollment {
   email: string;
   course: string;
   className: string;
+  schoolName?: string;
+  board?: string;
+  preferredBatch?: string;
+  customFields?: Record<string, string>;
   address: string;
   message: string;
   status: "new" | "contacted" | "enrolled";

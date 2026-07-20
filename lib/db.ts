@@ -6,21 +6,12 @@ import type { Enrollment, Teacher, Review, GalleryImage } from "./firestore";
    ═══════════════════════════════════════════ */
 
 export async function addEnrollment(
-  data: Omit<Enrollment, "id" | "status" | "createdAt">
+  data: Record<string, unknown>
 ): Promise<string> {
   const res = await fetch("/api/enrollments", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name: data.name || "",
-      guardianName: data.guardianName || "",
-      phone: data.phone || "",
-      email: data.email || "",
-      course: data.course || "",
-      className: data.className || "",
-      address: data.address || "",
-      message: data.message || "",
-    }),
+    body: JSON.stringify(data),
   });
 
   if (!res.ok) {
@@ -30,6 +21,57 @@ export async function addEnrollment(
 
   const json = await res.json();
   return String(json.id || json._id || "");
+}
+
+/* ═══════════════════════════════════════════
+   Enrollment Settings (Course Options & Custom Fields)
+   ═══════════════════════════════════════════ */
+
+export interface ExtraField {
+  id: string;
+  name: string;
+  label: string;
+  type: "text" | "select" | "number";
+  options?: string[];
+  required: boolean;
+  enabled: boolean;
+}
+
+export interface EnrollmentSetting {
+  courseOptions: string[];
+  extraFields: ExtraField[];
+}
+
+export async function getEnrollmentSettings(): Promise<EnrollmentSetting> {
+  const res = await fetch("/api/enrollment-settings", { cache: "no-store" });
+  if (!res.ok) {
+    return {
+      courseOptions: [
+        "Foundation (Class 5-7)",
+        "Madhyamik Prep (Class 8-10)",
+        "Higher Secondary (Class 11-12)",
+        "JEE Preparation",
+        "NEET Preparation",
+        "WBJEE Preparation",
+      ],
+      extraFields: [],
+    };
+  }
+  return await res.json();
+}
+
+export async function updateEnrollmentSettings(
+  data: Partial<EnrollmentSetting>
+): Promise<EnrollmentSetting> {
+  const res = await fetch("/api/enrollment-settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    throw new Error("Failed to update enrollment settings");
+  }
+  return await res.json();
 }
 
 export async function getEnrollments(): Promise<Enrollment[]> {

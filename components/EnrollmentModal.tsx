@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { addEnrollment, getCourses } from "@/lib/db";
+import { addEnrollment, getCourses, getEnrollmentSettings, ExtraField } from "@/lib/db";
 
 interface EnrollmentModalProps {
   isOpen: boolean;
@@ -18,13 +18,16 @@ const defaultCourseOptions = [
 ];
 
 export default function EnrollmentModal({ isOpen, onClose }: EnrollmentModalProps) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<Record<string, string>>({
     name: "",
     guardianName: "",
     phone: "",
     email: "",
     course: "",
     className: "",
+    schoolName: "",
+    board: "",
+    preferredBatch: "",
     address: "",
     message: "",
   });
@@ -32,15 +35,25 @@ export default function EnrollmentModal({ isOpen, onClose }: EnrollmentModalProp
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const [dynamicCourses, setDynamicCourses] = useState<string[]>([]);
+  const [extraFields, setExtraFields] = useState<ExtraField[]>([]);
 
   useEffect(() => {
-    getCourses()
-      .then((courses) => {
-        if (courses.length > 0) {
-          setDynamicCourses(courses.map((c) => (c.classes ? `${c.title} (${c.classes})` : c.title)));
-        }
-      })
-      .catch(() => {});
+    Promise.all([
+      getCourses().catch(() => []),
+      getEnrollmentSettings().catch(() => null),
+    ]).then(([courses, settings]) => {
+      // Set Course options
+      if (settings?.courseOptions && settings.courseOptions.length > 0) {
+        setDynamicCourses(settings.courseOptions);
+      } else if (courses.length > 0) {
+        setDynamicCourses(courses.map((c) => (c.classes ? `${c.title} (${c.classes})` : c.title)));
+      }
+
+      // Set Extra Fields
+      if (settings?.extraFields) {
+        setExtraFields(settings.extraFields.filter((f) => f.enabled));
+      }
+    });
   }, []);
 
   // Close on Escape & lock scroll
@@ -195,7 +208,7 @@ export default function EnrollmentModal({ isOpen, onClose }: EnrollmentModalProp
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <select
                     name="course"
-                    value={formData.course}
+                    value={formData.course || ""}
                     onChange={handleChange}
                     className="input-field"
                     required
@@ -211,11 +224,47 @@ export default function EnrollmentModal({ isOpen, onClose }: EnrollmentModalProp
                     name="className"
                     type="text"
                     placeholder="Current Class"
-                    value={formData.className}
+                    value={formData.className || ""}
                     onChange={handleChange}
                     className="input-field"
                   />
                 </div>
+
+                {/* ── Dynamic Extra Fields ── */}
+                {extraFields.length > 0 && (
+                  <div className="space-y-4">
+                    {extraFields.map((field) => (
+                      <div key={field.id || field.name}>
+                        {field.type === "select" && field.options && field.options.length > 0 ? (
+                          <select
+                            name={field.name}
+                            value={formData[field.name] || ""}
+                            onChange={handleChange}
+                            className="input-field"
+                            required={field.required}
+                          >
+                            <option value="">Select {field.label} {field.required ? "*" : ""}</option>
+                            {field.options.map((opt) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            name={field.name}
+                            type={field.type === "number" ? "number" : "text"}
+                            placeholder={`${field.label}${field.required ? " *" : ""}`}
+                            value={formData[field.name] || ""}
+                            onChange={handleChange}
+                            className="input-field"
+                            required={field.required}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <textarea
                   name="address"

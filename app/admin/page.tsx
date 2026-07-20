@@ -32,6 +32,10 @@ import {
   addCourse,
   updateCourse,
   deleteCourse,
+  getEnrollmentSettings,
+  updateEnrollmentSettings,
+  EnrollmentSetting,
+  ExtraField,
   Course,
   Enrollment,
   Teacher,
@@ -170,6 +174,21 @@ function EnrollmentsTab() {
   const [items, setItems] = useState<Enrollment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Form Settings state
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings] = useState<EnrollmentSetting>({
+    courseOptions: [],
+    extraFields: [],
+  });
+  const [newCourseOption, setNewCourseOption] = useState("");
+  const [newFieldName, setNewFieldName] = useState("");
+  const [newFieldLabel, setNewFieldLabel] = useState("");
+  const [newFieldType, setNewFieldType] = useState<"text" | "select" | "number">("text");
+  const [newFieldOptions, setNewFieldOptions] = useState("");
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  // Edit enrollment state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -178,6 +197,9 @@ function EnrollmentsTab() {
     email: "",
     course: "",
     className: "",
+    schoolName: "",
+    board: "",
+    preferredBatch: "",
     address: "",
     message: "",
     status: "new",
@@ -188,7 +210,12 @@ function EnrollmentsTab() {
     try {
       setLoading(true);
       setError("");
-      setItems(await getEnrollments());
+      const [enrollmentsData, settingsData] = await Promise.all([
+        getEnrollments(),
+        getEnrollmentSettings().catch(() => ({ courseOptions: [], extraFields: [] })),
+      ]);
+      setItems(enrollmentsData);
+      setSettings(settingsData);
     } catch {
       setError("Failed to load enrollments. Check your MongoDB connection.");
     } finally {
@@ -222,6 +249,9 @@ function EnrollmentsTab() {
       email: e.email || "",
       course: e.course || "",
       className: e.className || "",
+      schoolName: e.schoolName || "",
+      board: e.board || "",
+      preferredBatch: e.preferredBatch || "",
       address: e.address || "",
       message: e.message || "",
       status: e.status || "new",
@@ -253,23 +283,227 @@ function EnrollmentsTab() {
     }
   }
 
+  async function handleAddCourseOption(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newCourseOption.trim()) return;
+    const updatedOptions = [...(settings.courseOptions || []), newCourseOption.trim()];
+    setSettings((p) => ({ ...p, courseOptions: updatedOptions }));
+    setNewCourseOption("");
+  }
+
+  function handleRemoveCourseOption(option: string) {
+    setSettings((p) => ({
+      ...p,
+      courseOptions: p.courseOptions.filter((c) => c !== option),
+    }));
+  }
+
+  function handleToggleExtraField(id: string) {
+    setSettings((p) => ({
+      ...p,
+      extraFields: p.extraFields.map((f) => (f.id === id ? { ...f, enabled: !f.enabled } : f)),
+    }));
+  }
+
+  function handleRemoveExtraField(id: string) {
+    setSettings((p) => ({
+      ...p,
+      extraFields: p.extraFields.filter((f) => f.id !== id),
+    }));
+  }
+
+  async function handleAddCustomField(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newFieldLabel.trim()) return;
+    const fieldId = newFieldName.trim() || newFieldLabel.toLowerCase().replace(/[^a-z0-9]/g, "_");
+    const optionsArray = newFieldOptions
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const newField: ExtraField = {
+      id: fieldId,
+      name: fieldId,
+      label: newFieldLabel.trim(),
+      type: newFieldType,
+      options: optionsArray,
+      required: false,
+      enabled: true,
+    };
+
+    setSettings((p) => ({
+      ...p,
+      extraFields: [...(p.extraFields || []), newField],
+    }));
+
+    setNewFieldLabel("");
+    setNewFieldName("");
+    setNewFieldType("text");
+    setNewFieldOptions("");
+  }
+
+  async function handleSaveSettings() {
+    setSavingSettings(true);
+    try {
+      await updateEnrollmentSettings(settings);
+      alert("Enrollment form settings & course options saved successfully!");
+      setShowSettings(false);
+      await load();
+    } catch {
+      alert("Failed to save enrollment settings");
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
   if (loading) return <LoadingSpinner label="Loading enrollments..." />;
   if (error) return <ErrorBox message={error} onRetry={load} />;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-white">
-          Student Enrollments{" "}
-          <span className="text-navy-400 text-sm font-normal">
-            ({items.length})
-          </span>
-        </h2>
-        <button onClick={load} className="text-sm text-navy-400 hover:text-gold-400 transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5">
-          <RefreshIcon /> Refresh
-        </button>
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-xl font-bold text-white">
+            Student Enrollments{" "}
+            <span className="text-navy-400 text-sm font-normal">
+              ({items.length})
+            </span>
+          </h2>
+          <p className="text-navy-400 text-xs mt-1">
+            Manage incoming student applications and customize form fields & courses.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            className="btn-primary text-xs !py-2 !px-4 bg-purple-600/20 hover:bg-purple-600/30 border-purple-500/30 text-purple-300"
+          >
+            <span>⚙️ Customize Form & Courses</span>
+          </button>
+          <button onClick={load} className="text-sm text-navy-400 hover:text-gold-400 transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5">
+            <RefreshIcon /> Refresh
+          </button>
+        </div>
       </div>
 
+      {/* ── Form Settings Customizer Panel ── */}
+      {showSettings && (
+        <div className="glass-dark border border-gold-500/30 p-6 rounded-2xl mb-8 space-y-6 animate-slide-down">
+          <div className="flex items-center justify-between border-b border-white/10 pb-4">
+            <div>
+              <h3 className="text-lg font-bold text-gold-400 flex items-center gap-2">
+                <span>⚙️</span> Enrollment Form Settings
+              </h3>
+              <p className="text-navy-400 text-xs">
+                Add/remove course options for the form dropdown and add extra custom fields for students to fill out.
+              </p>
+            </div>
+            <button onClick={() => setShowSettings(false)} className="text-navy-400 hover:text-white text-xs">
+              ✕ Close
+            </button>
+          </div>
+
+          {/* 1. Manage Course Options */}
+          <div>
+            <h4 className="text-sm font-semibold text-white mb-2">1. Course Dropdown Options (shown in form)</h4>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {(settings.courseOptions || []).map((opt) => (
+                <span key={opt} className="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                  {opt}
+                  <button type="button" onClick={() => handleRemoveCourseOption(opt)} className="hover:text-red-400">
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+            <form onSubmit={handleAddCourseOption} className="flex gap-2 max-w-md">
+              <input
+                type="text"
+                placeholder="Add Course Option (e.g. Olympiad Foundation)"
+                value={newCourseOption}
+                onChange={(e) => setNewCourseOption(e.target.value)}
+                className="input-field text-xs flex-1"
+              />
+              <button type="submit" className="btn-primary text-xs !py-1.5 !px-3">
+                + Add Course
+              </button>
+            </form>
+          </div>
+
+          {/* 2. Manage Extra Form Fields */}
+          <div className="border-t border-white/10 pt-4">
+            <h4 className="text-sm font-semibold text-white mb-2">2. Extra Form Fields (School, Board, Batch, etc.)</h4>
+            <div className="space-y-2 mb-4">
+              {(settings.extraFields || []).map((f) => (
+                <div key={f.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10 text-xs">
+                  <div>
+                    <span className="font-semibold text-white">{f.label}</span>{" "}
+                    <span className="text-navy-400">({f.type} {f.options?.length ? `— ${f.options.join(", ")}` : ""})</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-1 cursor-pointer text-navy-300">
+                      <input
+                        type="checkbox"
+                        checked={f.enabled}
+                        onChange={() => handleToggleExtraField(f.id)}
+                        className="rounded border-white/20 bg-navy-950 text-gold-500"
+                      />
+                      Enable Field
+                    </label>
+                    <button type="button" onClick={() => handleRemoveExtraField(f.id)} className="text-navy-400 hover:text-red-400">
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Add Custom Field Form */}
+            <form onSubmit={handleAddCustomField} className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+              <input
+                type="text"
+                placeholder="Field Label (e.g. Previous Marks %)"
+                value={newFieldLabel}
+                onChange={(e) => setNewFieldLabel(e.target.value)}
+                className="input-field text-xs"
+                required
+              />
+              <select
+                value={newFieldType}
+                onChange={(e) => setNewFieldType(e.target.value as "text" | "select" | "number")}
+                className="input-field text-xs"
+              >
+                <option value="text">Text Input</option>
+                <option value="select">Dropdown Select</option>
+                <option value="number">Number Input</option>
+              </select>
+              <input
+                type="text"
+                placeholder="Options comma-separated (if select)"
+                value={newFieldOptions}
+                onChange={(e) => setNewFieldOptions(e.target.value)}
+                className="input-field text-xs"
+              />
+              <button type="submit" className="btn-primary text-xs !py-1.5 !px-3">
+                + Add Custom Field
+              </button>
+            </form>
+          </div>
+
+          <div className="border-t border-white/10 pt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={handleSaveSettings}
+              disabled={savingSettings}
+              className="btn-primary text-xs !py-2.5 !px-6"
+            >
+              <span>{savingSettings ? "Saving Settings..." : "Save Form Settings"}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Enrollment Cards List ── */}
       {items.length === 0 ? (
         <EmptyState icon="📋" message="No enrollments yet. They will appear here when students fill the enrollment form on your website." />
       ) : (
@@ -295,6 +529,11 @@ function EnrollmentsTab() {
                       <option value="contacted">🔵 Contacted</option>
                       <option value="enrolled">🟢 Enrolled</option>
                     </select>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <input type="text" placeholder="School Name" value={editForm.schoolName} onChange={(ev) => setEditForm((p) => ({ ...p, schoolName: ev.target.value }))} className="input-field text-sm" />
+                    <input type="text" placeholder="Board / Medium" value={editForm.board} onChange={(ev) => setEditForm((p) => ({ ...p, board: ev.target.value }))} className="input-field text-sm" />
+                    <input type="text" placeholder="Preferred Batch" value={editForm.preferredBatch} onChange={(ev) => setEditForm((p) => ({ ...p, preferredBatch: ev.target.value }))} className="input-field text-sm" />
                   </div>
                   <textarea placeholder="Address" value={editForm.address} onChange={(ev) => setEditForm((p) => ({ ...p, address: ev.target.value }))} className="input-field text-sm" rows={2} />
                   <textarea placeholder="Message" value={editForm.message} onChange={(ev) => setEditForm((p) => ({ ...p, message: ev.target.value }))} className="input-field text-sm" rows={2} />
@@ -324,12 +563,27 @@ function EnrollmentsTab() {
                       <div className="flex flex-wrap gap-2 mt-2">
                         {e.course && (
                           <span className="text-xs px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                            {e.course}
+                            Course: {e.course}
                           </span>
                         )}
                         {e.className && (
                           <span className="text-xs px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">
                             Class: {e.className}
+                          </span>
+                        )}
+                        {Boolean(e.schoolName) && (
+                          <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            🏫 {e.schoolName}
+                          </span>
+                        )}
+                        {Boolean(e.board) && (
+                          <span className="text-xs px-2.5 py-1 rounded-full bg-gold-500/10 text-gold-400 border border-gold-500/20">
+                            Board: {e.board}
+                          </span>
+                        )}
+                        {Boolean(e.preferredBatch) && (
+                          <span className="text-xs px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                            ⏰ {e.preferredBatch}
                           </span>
                         )}
                       </div>

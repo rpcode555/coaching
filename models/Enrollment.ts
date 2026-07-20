@@ -7,6 +7,10 @@ export interface IEnrollment extends Document {
   email: string;
   course: string;
   className: string;
+  schoolName?: string;
+  board?: string;
+  preferredBatch?: string;
+  customFields?: Record<string, string>;
   address: string;
   message: string;
   status: "new" | "contacted" | "enrolled";
@@ -21,6 +25,10 @@ const EnrollmentSchema = new Schema<IEnrollment>(
     email: { type: String, default: "" },
     course: { type: String, default: "General Coaching" },
     className: { type: String, default: "" },
+    schoolName: { type: String, default: "" },
+    board: { type: String, default: "" },
+    preferredBatch: { type: String, default: "" },
+    customFields: { type: Schema.Types.Mixed, default: {} },
     address: { type: String, default: "" },
     message: { type: String, default: "" },
     status: {
