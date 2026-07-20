@@ -55,12 +55,12 @@ export default function Navbar() {
           <div className="flex items-center justify-between">
             {/* ── Logo ── */}
             <a
-              href="#home"
+              href="/"
               onClick={(e) => {
                 e.preventDefault();
-                scrollTo("#home");
+                window.location.href = "/";
               }}
-              className="flex items-center gap-3 group"
+              className="flex items-center gap-3 group cursor-pointer"
             >
               <div className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden ring-2 ring-gold-500/30 group-hover:ring-gold-500/60 transition-all duration-300">
                 <Image

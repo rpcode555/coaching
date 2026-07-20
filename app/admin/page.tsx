@@ -61,7 +61,7 @@ export default function AdminPage() {
   const [adminList, setAdminList] = useState<AdminUser[]>([]);
 
   useEffect(() => {
-    getAdmins().then(setAdminList).catch(() => {});
+    getAdmins().then(setAdminList).catch(() => { });
   }, []);
 
   const adminEmail = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "palranjan144@gmail.com").trim().toLowerCase();
@@ -72,7 +72,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (isAdmin && userEmail) {
-      trackAdminLogin(userEmail, user?.displayName || "Admin").catch(() => {});
+      trackAdminLogin(userEmail, user?.displayName || "Admin").catch(() => { });
     }
   }, [isAdmin, userEmail, user?.displayName]);
 
@@ -135,11 +135,10 @@ export default function AdminPage() {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`px-5 py-3.5 text-sm font-medium whitespace-nowrap border-b-2 transition-all ${
-                  activeTab === tab.key
+                className={`px-5 py-3.5 text-sm font-medium whitespace-nowrap border-b-2 transition-all ${activeTab === tab.key
                     ? "border-gold-500 text-gold-400"
                     : "border-transparent text-navy-400 hover:text-navy-200 hover:border-white/10"
-                }`}
+                  }`}
               >
                 {tab.label}
               </button>
@@ -271,13 +270,12 @@ function EnrollmentsTab() {
                   <select
                     value={e.status}
                     onChange={(ev) => changeStatus(e.id, ev.target.value)}
-                    className={`status-select text-xs px-3 py-1.5 rounded-full border font-medium ${
-                      e.status === "new"
+                    className={`status-select text-xs px-3 py-1.5 rounded-full border font-medium ${e.status === "new"
                         ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
                         : e.status === "contacted"
                           ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
                           : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                    }`}
+                      }`}
                   >
                     <option value="new">🟡 New</option>
                     <option value="contacted">🔵 Contacted</option>
@@ -457,6 +455,31 @@ function CoursesTab() {
     }
   }
 
+  async function moveCourse(index: number, direction: "up" | "down") {
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= items.length) return;
+
+    const newItems = [...items];
+    const current = newItems[index];
+    const target = newItems[targetIndex];
+
+    const currentOrder = current.order ?? index;
+    const targetOrder = target.order ?? targetIndex;
+
+    newItems[index] = { ...target, order: currentOrder };
+    newItems[targetIndex] = { ...current, order: targetOrder };
+    setItems(newItems);
+
+    try {
+      await Promise.all([
+        updateCourse(current.id, { order: targetOrder }),
+        updateCourse(target.id, { order: currentOrder }),
+      ]);
+    } catch {
+      await load();
+    }
+  }
+
   async function remove(id: string) {
     if (!confirm("Delete this course? It will be removed from your website.")) return;
     try {
@@ -578,7 +601,7 @@ function CoursesTab() {
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {items.map((c) => (
+          {items.map((c, idx) => (
             <div
               key={c.id}
               className={`relative rounded-xl bg-gradient-to-br ${c.color || "from-blue-500/20 to-indigo-500/10"} border ${c.border || "border-blue-500/20"} p-6 group transition-all`}
@@ -614,7 +637,26 @@ function CoursesTab() {
               ) : (
                 /* ── Display ── */
                 <>
-                  <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                  <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-white/10 text-gold-400 border border-white/10 mr-1">
+                      #{idx + 1}
+                    </span>
+                    <button
+                      onClick={() => moveCourse(idx, "up")}
+                      disabled={idx === 0}
+                      className="p-1.5 rounded-lg hover:bg-white/10 text-navy-300 hover:text-white transition-colors disabled:opacity-30"
+                      title="Move Up (Show earlier)"
+                    >
+                      ⬆️
+                    </button>
+                    <button
+                      onClick={() => moveCourse(idx, "down")}
+                      disabled={idx === items.length - 1}
+                      className="p-1.5 rounded-lg hover:bg-white/10 text-navy-300 hover:text-white transition-colors disabled:opacity-30"
+                      title="Move Down (Show later)"
+                    >
+                      ⬇️
+                    </button>
                     <button
                       onClick={() => startEdit(c)}
                       className="p-1.5 rounded-lg hover:bg-blue-500/10 text-navy-300 hover:text-blue-400 transition-colors"
@@ -744,7 +786,7 @@ function TeachersTab() {
         // Delete old photo
         const old = items.find((t) => t.id === editingId);
         if (old?.photoPath) {
-          await deleteFromStorage(old.photoPath).catch(() => {});
+          await deleteFromStorage(old.photoPath).catch(() => { });
         }
       }
       await updateTeacher(editingId, updateData);
@@ -755,6 +797,31 @@ function TeachersTab() {
       alert("Failed to update teacher");
     } finally {
       setEditSubmitting(false);
+    }
+  }
+
+  async function moveTeacher(index: number, direction: "up" | "down") {
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= items.length) return;
+
+    const newItems = [...items];
+    const current = newItems[index];
+    const target = newItems[targetIndex];
+
+    const currentOrder = current.order ?? index;
+    const targetOrder = target.order ?? targetIndex;
+
+    newItems[index] = { ...target, order: currentOrder };
+    newItems[targetIndex] = { ...current, order: targetOrder };
+    setItems(newItems);
+
+    try {
+      await Promise.all([
+        updateTeacher(current.id, { order: targetOrder }),
+        updateTeacher(target.id, { order: currentOrder }),
+      ]);
+    } catch {
+      await load();
     }
   }
 
@@ -875,7 +942,7 @@ function TeachersTab() {
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items.map((t) => (
+          {items.map((t, idx) => (
             <div
               key={t.id}
               className="gradient-border p-5 rounded-xl relative group"
@@ -903,7 +970,26 @@ function TeachersTab() {
               ) : (
                 /* ── Display ── */
                 <>
-                  <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gold-500/10 text-gold-400 border border-gold-500/20 mr-1">
+                      #{idx + 1}
+                    </span>
+                    <button
+                      onClick={() => moveTeacher(idx, "up")}
+                      disabled={idx === 0}
+                      className="p-1 rounded hover:bg-white/10 text-navy-300 hover:text-white transition-colors disabled:opacity-30"
+                      title="Move Up (Show 1st / earlier)"
+                    >
+                      ⬆️
+                    </button>
+                    <button
+                      onClick={() => moveTeacher(idx, "down")}
+                      disabled={idx === items.length - 1}
+                      className="p-1 rounded hover:bg-white/10 text-navy-300 hover:text-white transition-colors disabled:opacity-30"
+                      title="Move Down (Show later)"
+                    >
+                      ⬇️
+                    </button>
                     <button
                       onClick={() => startEdit(t)}
                       className="p-1.5 rounded-lg hover:bg-blue-500/10 text-navy-500 hover:text-blue-400 transition-colors"
@@ -1283,7 +1369,7 @@ function GalleryTab() {
         // Delete old image
         const old = items.find((img) => img.id === editingId);
         if (old?.storagePath) {
-          await deleteFromStorage(old.storagePath).catch(() => {});
+          await deleteFromStorage(old.storagePath).catch(() => { });
         }
       }
       await updateGalleryImage(editingId, updateData);
@@ -1295,6 +1381,31 @@ function GalleryTab() {
       alert("Failed to update gallery image");
     } finally {
       setEditSubmitting(false);
+    }
+  }
+
+  async function moveGallery(index: number, direction: "up" | "down") {
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= items.length) return;
+
+    const newItems = [...items];
+    const current = newItems[index];
+    const target = newItems[targetIndex];
+
+    const currentOrder = current.order ?? index;
+    const targetOrder = target.order ?? targetIndex;
+
+    newItems[index] = { ...target, order: currentOrder };
+    newItems[targetIndex] = { ...current, order: targetOrder };
+    setItems(newItems);
+
+    try {
+      await Promise.all([
+        updateGalleryImage(current.id, { order: targetOrder }),
+        updateGalleryImage(target.id, { order: currentOrder }),
+      ]);
+    } catch {
+      await load();
     }
   }
 
@@ -1394,7 +1505,7 @@ function GalleryTab() {
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items.map((img) => (
+          {items.map((img, idx) => (
             <div
               key={img.id}
               className="relative group rounded-xl overflow-hidden border border-white/5"
@@ -1434,17 +1545,36 @@ function GalleryTab() {
                     />
                   </div>
                   {/* Overlay */}
-                  <div className="absolute inset-0 bg-navy-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                  <div className="absolute inset-0 bg-navy-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <span className="text-[10px] font-bold px-2 py-1 rounded bg-black/50 text-gold-400 border border-white/20">
+                      #{idx + 1}
+                    </span>
+                    <button
+                      onClick={() => moveGallery(idx, "up")}
+                      disabled={idx === 0}
+                      className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition-colors disabled:opacity-30"
+                      title="Move Up (Show earlier)"
+                    >
+                      ⬆️
+                    </button>
+                    <button
+                      onClick={() => moveGallery(idx, "down")}
+                      disabled={idx === items.length - 1}
+                      className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition-colors disabled:opacity-30"
+                      title="Move Down (Show later)"
+                    >
+                      ⬇️
+                    </button>
                     <button
                       onClick={() => startEdit(img)}
-                      className="p-3 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 transition-colors"
+                      className="p-2 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 transition-colors"
                       title="Edit image"
                     >
                       <EditIcon />
                     </button>
                     <button
                       onClick={() => remove(img.id, img.storagePath)}
-                      className="p-3 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 transition-colors"
+                      className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 transition-colors"
                       title="Delete image"
                     >
                       <TrashIcon />
