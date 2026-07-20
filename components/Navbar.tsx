@@ -8,6 +8,7 @@ import LoginModal from "./LoginModal";
 const navLinks = [
   { label: "Home", href: "#home" },
   { label: "Courses", href: "#courses" },
+  { label: "Our Classroom", href: "#gallery" },
   { label: "About", href: "#about" },
   { label: "Contact", href: "#contact" },
 ];

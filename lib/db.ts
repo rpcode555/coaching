@@ -1,18 +1,26 @@
-import * as firestore from "./firestore";
-
 export type { Enrollment, Teacher, Review, GalleryImage } from "./firestore";
+import type { Enrollment, Teacher, Review, GalleryImage } from "./firestore";
 
 /* ═══════════════════════════════════════════
    Enrollments (Direct MongoDB API)
    ═══════════════════════════════════════════ */
 
 export async function addEnrollment(
-  data: Omit<firestore.Enrollment, "id" | "status" | "createdAt">
+  data: Omit<Enrollment, "id" | "status" | "createdAt">
 ): Promise<string> {
   const res = await fetch("/api/enrollments", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: JSON.stringify({
+      name: data.name || "",
+      guardianName: data.guardianName || "",
+      phone: data.phone || "",
+      email: data.email || "",
+      course: data.course || "",
+      className: data.className || "",
+      address: data.address || "",
+      message: data.message || "",
+    }),
   });
 
   if (!res.ok) {
@@ -24,22 +32,19 @@ export async function addEnrollment(
   return String(json.id || json._id || "");
 }
 
-export async function getEnrollments(): Promise<firestore.Enrollment[]> {
-  try {
-    const res = await fetch("/api/enrollments", { cache: "no-store" });
-    if (res.ok) {
-      const items = await res.json();
-      if (Array.isArray(items)) {
-        return items.map((item) => ({
-          ...item,
-          id: String(item._id || item.id),
-        }));
-      }
-    }
-  } catch (err) {
-    console.warn("MongoDB API getEnrollments error:", err);
+export async function getEnrollments(): Promise<Enrollment[]> {
+  const res = await fetch("/api/enrollments", { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error("Failed to fetch enrollments");
   }
-  return firestore.getEnrollments();
+  const items = await res.json();
+  if (Array.isArray(items)) {
+    return items.map((item: Record<string, unknown>) => ({
+      ...item,
+      id: String(item._id || item.id),
+    })) as Enrollment[];
+  }
+  return [];
 }
 
 export async function updateEnrollmentStatus(
@@ -69,42 +74,39 @@ export async function deleteEnrollment(id: string): Promise<void> {
    Teachers (Direct MongoDB API)
    ═══════════════════════════════════════════ */
 
-export async function getTeachers(): Promise<firestore.Teacher[]> {
-  try {
-    const res = await fetch("/api/teachers", { cache: "no-store" });
-    if (res.ok) {
-      const items = await res.json();
-      if (Array.isArray(items)) {
-        return items.map((item) => ({
-          ...item,
-          id: String(item._id || item.id),
-        }));
-      }
-    }
-  } catch (err) {
-    console.warn("MongoDB API getTeachers error:", err);
+export async function getTeachers(): Promise<Teacher[]> {
+  const res = await fetch("/api/teachers", { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error("Failed to fetch teachers");
   }
-  return firestore.getTeachers();
+  const items = await res.json();
+  if (Array.isArray(items)) {
+    return items.map((item: Record<string, unknown>) => ({
+      ...item,
+      id: String(item._id || item.id),
+    })) as Teacher[];
+  }
+  return [];
 }
 
 export async function addTeacher(
-  data: Omit<firestore.Teacher, "id">
+  data: Omit<Teacher, "id">
 ): Promise<string> {
   const res = await fetch("/api/teachers", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  if (res.ok) {
-    const json = await res.json();
-    return String(json.id || json._id);
+  if (!res.ok) {
+    throw new Error("Failed to add teacher");
   }
-  return firestore.addTeacher(data);
+  const json = await res.json();
+  return String(json.id || json._id);
 }
 
 export async function updateTeacher(
   id: string,
-  data: Partial<firestore.Teacher>
+  data: Partial<Teacher>
 ): Promise<void> {
   const res = await fetch(`/api/teachers/${id}`, {
     method: "PATCH",
@@ -112,7 +114,7 @@ export async function updateTeacher(
     body: JSON.stringify(data),
   });
   if (!res.ok) {
-    return firestore.updateTeacher(id, data);
+    throw new Error("Failed to update teacher");
   }
 }
 
@@ -121,7 +123,7 @@ export async function deleteTeacher(id: string): Promise<void> {
     method: "DELETE",
   });
   if (!res.ok) {
-    return firestore.deleteTeacher(id);
+    throw new Error("Failed to delete teacher");
   }
 }
 
@@ -129,37 +131,48 @@ export async function deleteTeacher(id: string): Promise<void> {
    Reviews (Direct MongoDB API)
    ═══════════════════════════════════════════ */
 
-export async function getReviews(): Promise<firestore.Review[]> {
-  try {
-    const res = await fetch("/api/reviews", { cache: "no-store" });
-    if (res.ok) {
-      const items = await res.json();
-      if (Array.isArray(items)) {
-        return items.map((item) => ({
-          ...item,
-          id: String(item._id || item.id),
-        }));
-      }
-    }
-  } catch (err) {
-    console.warn("MongoDB API getReviews error:", err);
+export async function getReviews(): Promise<Review[]> {
+  const res = await fetch("/api/reviews", { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error("Failed to fetch reviews");
   }
-  return firestore.getReviews();
+  const items = await res.json();
+  if (Array.isArray(items)) {
+    return items.map((item: Record<string, unknown>) => ({
+      ...item,
+      id: String(item._id || item.id),
+    })) as Review[];
+  }
+  return [];
 }
 
 export async function addReview(
-  data: Omit<firestore.Review, "id" | "createdAt">
+  data: Omit<Review, "id" | "createdAt">
 ): Promise<string> {
   const res = await fetch("/api/reviews", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  if (res.ok) {
-    const json = await res.json();
-    return String(json.id || json._id);
+  if (!res.ok) {
+    throw new Error("Failed to add review");
   }
-  return firestore.addReview(data);
+  const json = await res.json();
+  return String(json.id || json._id);
+}
+
+export async function updateReview(
+  id: string,
+  data: Partial<Review>
+): Promise<void> {
+  const res = await fetch(`/api/reviews/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    throw new Error("Failed to update review");
+  }
 }
 
 export async function deleteReview(id: string): Promise<void> {
@@ -167,7 +180,7 @@ export async function deleteReview(id: string): Promise<void> {
     method: "DELETE",
   });
   if (!res.ok) {
-    return firestore.deleteReview(id);
+    throw new Error("Failed to delete review");
   }
 }
 
@@ -175,37 +188,48 @@ export async function deleteReview(id: string): Promise<void> {
    Gallery (Direct MongoDB API)
    ═══════════════════════════════════════════ */
 
-export async function getGalleryImages(): Promise<firestore.GalleryImage[]> {
-  try {
-    const res = await fetch("/api/gallery", { cache: "no-store" });
-    if (res.ok) {
-      const items = await res.json();
-      if (Array.isArray(items)) {
-        return items.map((item) => ({
-          ...item,
-          id: String(item._id || item.id),
-        }));
-      }
-    }
-  } catch (err) {
-    console.warn("MongoDB API getGalleryImages error:", err);
+export async function getGalleryImages(): Promise<GalleryImage[]> {
+  const res = await fetch("/api/gallery", { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error("Failed to fetch gallery images");
   }
-  return firestore.getGalleryImages();
+  const items = await res.json();
+  if (Array.isArray(items)) {
+    return items.map((item: Record<string, unknown>) => ({
+      ...item,
+      id: String(item._id || item.id),
+    })) as GalleryImage[];
+  }
+  return [];
 }
 
 export async function addGalleryImage(
-  data: Omit<firestore.GalleryImage, "id" | "createdAt">
+  data: Omit<GalleryImage, "id" | "createdAt">
 ): Promise<string> {
   const res = await fetch("/api/gallery", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  if (res.ok) {
-    const json = await res.json();
-    return String(json.id || json._id);
+  if (!res.ok) {
+    throw new Error("Failed to add gallery image");
   }
-  return firestore.addGalleryImage(data);
+  const json = await res.json();
+  return String(json.id || json._id);
+}
+
+export async function updateGalleryImage(
+  id: string,
+  data: Partial<GalleryImage>
+): Promise<void> {
+  const res = await fetch(`/api/gallery/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    throw new Error("Failed to update gallery image");
+  }
 }
 
 export async function deleteGalleryImage(id: string): Promise<void> {
@@ -213,7 +237,7 @@ export async function deleteGalleryImage(id: string): Promise<void> {
     method: "DELETE",
   });
   if (!res.ok) {
-    return firestore.deleteGalleryImage(id);
+    throw new Error("Failed to delete gallery image");
   }
 }
 
@@ -235,19 +259,16 @@ export interface AdminUser {
 }
 
 export async function getAdmins(): Promise<AdminUser[]> {
-  try {
-    const res = await fetch("/api/admins", { cache: "no-store" });
-    if (res.ok) {
-      const items = await res.json();
-      if (Array.isArray(items)) {
-        return items.map((item) => ({
-          ...item,
-          id: String(item._id || item.id),
-        }));
-      }
-    }
-  } catch (err) {
-    console.warn("MongoDB API getAdmins error:", err);
+  const res = await fetch("/api/admins", { cache: "no-store" });
+  if (!res.ok) {
+    return [];
+  }
+  const items = await res.json();
+  if (Array.isArray(items)) {
+    return items.map((item: Record<string, unknown>) => ({
+      ...item,
+      id: String(item._id || item.id),
+    })) as AdminUser[];
   }
   return [];
 }

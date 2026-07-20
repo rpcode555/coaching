@@ -450,15 +450,15 @@ export default function Home() {
       </Section>
 
       {/* ═══ CLASSROOM GALLERY ═══ */}
-      {galleryImages.length > 0 && (
-        <Section id="gallery" className="py-24 lg:py-32 relative">
-          <div className="absolute inset-0 bg-gradient-to-b from-navy-950 via-navy-900/50 to-navy-950" />
-          <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <span className="text-gold-500 text-sm font-semibold tracking-[0.2em] uppercase mb-3 block">Inside Our Campus</span>
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">Our <span className="gradient-text">Classrooms</span></h2>
-              <p className="text-navy-300 max-w-2xl mx-auto text-lg">Take a look at our modern learning environment designed for student success.</p>
-            </div>
+      <Section id="gallery" className="py-24 lg:py-32 relative">
+        <div className="absolute inset-0 bg-gradient-to-b from-navy-950 via-navy-900/50 to-navy-950" />
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <span className="text-gold-500 text-sm font-semibold tracking-[0.2em] uppercase mb-3 block">Inside Our Campus</span>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">Our <span className="gradient-text">Classrooms</span></h2>
+            <p className="text-navy-300 max-w-2xl mx-auto text-lg">Take a look at our modern learning environment designed for student success.</p>
+          </div>
+          {galleryImages.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {galleryImages.map((img, i) => (
                 <div key={img.id} className="group relative rounded-2xl overflow-hidden card-hover" style={{ transitionDelay: `${i * 100}ms` }}>
@@ -474,9 +474,19 @@ export default function Home() {
                 </div>
               ))}
             </div>
-          </div>
-        </Section>
-      )}
+          ) : (
+            <div className="text-center py-16">
+              <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gold-500/10 flex items-center justify-center">
+                <svg className="w-10 h-10 text-gold-400/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5a2.25 2.25 0 002.25-2.25V5.25a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 003.75 21z" />
+                </svg>
+              </div>
+              <p className="text-navy-400 text-base">Classroom photos coming soon!</p>
+              <p className="text-navy-500 text-sm mt-1">Contact us to schedule a campus visit.</p>
+            </div>
+          )}
+        </div>
+      </Section>
 
       {/* ═══ CTA ═══ */}
       <Section id="cta" className="py-24 lg:py-32 relative overflow-hidden">

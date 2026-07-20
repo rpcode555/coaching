@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -11,13 +11,16 @@ import {
   deleteEnrollment,
   getTeachers,
   addTeacher,
+  updateTeacher,
   deleteTeacher,
   deleteFromStorage,
   getReviews,
   addReview,
+  updateReview,
   deleteReview,
   getGalleryImages,
   addGalleryImage,
+  updateGalleryImage,
   deleteGalleryImage,
   uploadImage,
   getAdmins,
@@ -161,19 +164,21 @@ function EnrollmentsTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function load() {
+  const load = useCallback(async () => {
     try {
+      setLoading(true);
+      setError("");
       setItems(await getEnrollments());
     } catch {
-      setError("Failed to load enrollments. Make sure Firestore is enabled.");
+      setError("Failed to load enrollments. Check your MongoDB connection.");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function changeStatus(id: string, status: string) {
     try {
@@ -199,7 +204,7 @@ function EnrollmentsTab() {
   }
 
   if (loading) return <LoadingSpinner label="Loading enrollments..." />;
-  if (error) return <ErrorBox message={error} />;
+  if (error) return <ErrorBox message={error} onRetry={load} />;
 
   return (
     <div>
@@ -210,6 +215,9 @@ function EnrollmentsTab() {
             ({items.length})
           </span>
         </h2>
+        <button onClick={load} className="text-sm text-navy-400 hover:text-gold-400 transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5">
+          <RefreshIcon /> Refresh
+        </button>
       </div>
 
       {items.length === 0 ? (
@@ -294,20 +302,26 @@ function TeachersTab() {
   const [form, setForm] = useState({ name: "", subject: "", qualification: "", experience: "" });
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", subject: "", qualification: "", experience: "" });
+  const [editPhotoFile, setEditPhotoFile] = useState<File | null>(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function load() {
+  const load = useCallback(async () => {
     try {
+      setLoading(true);
+      setError("");
       setItems(await getTeachers());
     } catch {
-      setError("Failed to load teachers. Make sure Firestore is enabled.");
+      setError("Failed to load teachers. Check your MongoDB connection.");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -337,6 +351,39 @@ function TeachersTab() {
     }
   }
 
+  function startEdit(t: Teacher) {
+    setEditingId(t.id);
+    setEditForm({ name: t.name, subject: t.subject, qualification: t.qualification, experience: t.experience });
+    setEditPhotoFile(null);
+  }
+
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingId) return;
+    setEditSubmitting(true);
+    try {
+      const updateData: Partial<Teacher> = { ...editForm };
+      if (editPhotoFile) {
+        const res = await uploadImage(editPhotoFile, "teachers");
+        updateData.photoURL = res.url;
+        updateData.photoPath = res.path;
+        // Delete old photo
+        const old = items.find((t) => t.id === editingId);
+        if (old?.photoPath) {
+          await deleteFromStorage(old.photoPath).catch(() => {});
+        }
+      }
+      await updateTeacher(editingId, updateData);
+      setEditingId(null);
+      setEditPhotoFile(null);
+      await load();
+    } catch {
+      alert("Failed to update teacher");
+    } finally {
+      setEditSubmitting(false);
+    }
+  }
+
   async function remove(id: string, photoPath?: string) {
     if (!confirm("Delete this teacher?")) return;
     try {
@@ -349,7 +396,7 @@ function TeachersTab() {
   }
 
   if (loading) return <LoadingSpinner label="Loading teachers..." />;
-  if (error) return <ErrorBox message={error} />;
+  if (error) return <ErrorBox message={error} onRetry={load} />;
 
   return (
     <div>
@@ -360,12 +407,17 @@ function TeachersTab() {
             ({items.length} in database)
           </span>
         </h2>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="btn-primary text-sm !py-2 !px-5"
-        >
-          <span>{showForm ? "Cancel" : "+ Add Teacher"}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={load} className="text-sm text-navy-400 hover:text-gold-400 transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5">
+            <RefreshIcon /> Refresh
+          </button>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="btn-primary text-sm !py-2 !px-5"
+          >
+            <span>{showForm ? "Cancel" : "+ Add Teacher"}</span>
+          </button>
+        </div>
       </div>
 
       <p className="text-navy-500 text-xs mb-6">
@@ -454,40 +506,74 @@ function TeachersTab() {
               key={t.id}
               className="gradient-border p-5 rounded-xl relative group"
             >
-              <button
-                onClick={() => remove(t.id, t.photoPath)}
-                className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-red-500/10 text-navy-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-                title="Delete teacher"
-              >
-                <TrashIcon />
-              </button>
-              <div className="flex items-center gap-4">
-                {t.photoURL ? (
-                  <img
-                    src={t.photoURL}
-                    alt={t.name}
-                    className="w-14 h-14 rounded-full object-cover shrink-0"
-                  />
-                ) : (
-                  <div className="w-14 h-14 rounded-full bg-gradient-to-br from-gold-500 to-gold-700 flex items-center justify-center text-navy-950 font-bold text-lg shrink-0">
-                    {t.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .slice(0, 2)}
+              {editingId === t.id ? (
+                /* ── Edit Form ── */
+                <form onSubmit={handleEdit} className="space-y-3">
+                  <input type="text" placeholder="Name *" value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} className="input-field text-sm" required />
+                  <input type="text" placeholder="Subject *" value={editForm.subject} onChange={(e) => setEditForm((p) => ({ ...p, subject: e.target.value }))} className="input-field text-sm" required />
+                  <input type="text" placeholder="Qualification" value={editForm.qualification} onChange={(e) => setEditForm((p) => ({ ...p, qualification: e.target.value }))} className="input-field text-sm" />
+                  <input type="text" placeholder="Experience *" value={editForm.experience} onChange={(e) => setEditForm((p) => ({ ...p, experience: e.target.value }))} className="input-field text-sm" required />
+                  <div>
+                    <label className="block text-xs text-navy-400 mb-1">Replace Photo (optional)</label>
+                    <input type="file" accept="image/*" onChange={(e) => setEditPhotoFile(e.target.files?.[0] || null)} className="text-xs text-navy-300 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-gold-500/10 file:text-gold-400 file:text-xs file:cursor-pointer" />
                   </div>
-                )}
-                <div className="min-w-0">
-                  <h3 className="text-white font-semibold text-sm truncate">
-                    {t.name}
-                  </h3>
-                  <p className="text-gold-400 text-xs">{t.subject}</p>
-                  {t.qualification && (
-                    <p className="text-navy-400 text-xs">{t.qualification}</p>
-                  )}
-                  <p className="text-navy-500 text-xs">{t.experience}</p>
-                </div>
-              </div>
+                  <div className="flex gap-2">
+                    <button type="submit" disabled={editSubmitting} className="btn-primary text-xs !py-2 !px-4 disabled:opacity-50">
+                      <span>{editSubmitting ? "Saving..." : "Save"}</span>
+                    </button>
+                    <button type="button" onClick={() => setEditingId(null)} className="text-xs text-navy-400 hover:text-white px-3 py-2 rounded-lg hover:bg-white/5 transition-colors">
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                /* ── Display ── */
+                <>
+                  <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => startEdit(t)}
+                      className="p-1.5 rounded-lg hover:bg-blue-500/10 text-navy-500 hover:text-blue-400 transition-colors"
+                      title="Edit teacher"
+                    >
+                      <EditIcon />
+                    </button>
+                    <button
+                      onClick={() => remove(t.id, t.photoPath)}
+                      className="p-1.5 rounded-lg hover:bg-red-500/10 text-navy-500 hover:text-red-400 transition-colors"
+                      title="Delete teacher"
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    {t.photoURL ? (
+                      <img
+                        src={t.photoURL}
+                        alt={t.name}
+                        className="w-14 h-14 rounded-full object-cover shrink-0"
+                      />
+                    ) : (
+                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-gold-500 to-gold-700 flex items-center justify-center text-navy-950 font-bold text-lg shrink-0">
+                        {t.name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .slice(0, 2)}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <h3 className="text-white font-semibold text-sm truncate">
+                        {t.name}
+                      </h3>
+                      <p className="text-gold-400 text-xs">{t.subject}</p>
+                      {t.qualification && (
+                        <p className="text-navy-400 text-xs">{t.qualification}</p>
+                      )}
+                      <p className="text-navy-500 text-xs">{t.experience}</p>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -507,20 +593,25 @@ function ReviewsTab() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", achievement: "", quote: "" });
   const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", achievement: "", quote: "" });
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function load() {
+  const load = useCallback(async () => {
     try {
+      setLoading(true);
+      setError("");
       setItems(await getReviews());
     } catch {
-      setError("Failed to load reviews.");
+      setError("Failed to load reviews. Check your MongoDB connection.");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -537,6 +628,26 @@ function ReviewsTab() {
     }
   }
 
+  function startEdit(r: Review) {
+    setEditingId(r.id);
+    setEditForm({ name: r.name, achievement: r.achievement, quote: r.quote });
+  }
+
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingId) return;
+    setEditSubmitting(true);
+    try {
+      await updateReview(editingId, editForm);
+      setEditingId(null);
+      await load();
+    } catch {
+      alert("Failed to update review");
+    } finally {
+      setEditSubmitting(false);
+    }
+  }
+
   async function remove(id: string) {
     if (!confirm("Delete this review?")) return;
     try {
@@ -548,7 +659,7 @@ function ReviewsTab() {
   }
 
   if (loading) return <LoadingSpinner label="Loading reviews..." />;
-  if (error) return <ErrorBox message={error} />;
+  if (error) return <ErrorBox message={error} onRetry={load} />;
 
   return (
     <div>
@@ -559,12 +670,17 @@ function ReviewsTab() {
             ({items.length} in database)
           </span>
         </h2>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="btn-primary text-sm !py-2 !px-5"
-        >
-          <span>{showForm ? "Cancel" : "+ Add Review"}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={load} className="text-sm text-navy-400 hover:text-gold-400 transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5">
+            <RefreshIcon /> Refresh
+          </button>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="btn-primary text-sm !py-2 !px-5"
+          >
+            <span>{showForm ? "Cancel" : "+ Add Review"}</span>
+          </button>
+        </div>
       </div>
 
       <p className="text-navy-500 text-xs mb-6">
@@ -629,28 +745,59 @@ function ReviewsTab() {
               key={r.id}
               className="gradient-border p-5 rounded-xl relative group"
             >
-              <button
-                onClick={() => remove(r.id)}
-                className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-red-500/10 text-navy-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-                title="Delete review"
-              >
-                <TrashIcon />
-              </button>
-              <div className="text-gold-500/30 text-3xl font-serif leading-none mb-2 select-none">
-                &ldquo;
-              </div>
-              <p className="text-navy-300 text-sm leading-relaxed mb-3 italic">
-                {r.quote}
-              </p>
-              <p className="text-white text-sm font-medium">
-                {r.name}{" "}
-                <span className="text-gold-400/70 text-xs font-normal">
-                  — {r.achievement}
-                </span>
-              </p>
-              <p className="text-navy-600 text-xs mt-2">
-                {formatDate(r.createdAt)}
-              </p>
+              {editingId === r.id ? (
+                /* ── Edit Form ── */
+                <form onSubmit={handleEdit} className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input type="text" placeholder="Name *" value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} className="input-field text-sm" required />
+                    <input type="text" placeholder="Achievement *" value={editForm.achievement} onChange={(e) => setEditForm((p) => ({ ...p, achievement: e.target.value }))} className="input-field text-sm" required />
+                  </div>
+                  <textarea placeholder="Quote *" value={editForm.quote} onChange={(e) => setEditForm((p) => ({ ...p, quote: e.target.value }))} className="input-field text-sm" rows={3} required />
+                  <div className="flex gap-2">
+                    <button type="submit" disabled={editSubmitting} className="btn-primary text-xs !py-2 !px-4 disabled:opacity-50">
+                      <span>{editSubmitting ? "Saving..." : "Save"}</span>
+                    </button>
+                    <button type="button" onClick={() => setEditingId(null)} className="text-xs text-navy-400 hover:text-white px-3 py-2 rounded-lg hover:bg-white/5 transition-colors">
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                /* ── Display ── */
+                <>
+                  <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => startEdit(r)}
+                      className="p-1.5 rounded-lg hover:bg-blue-500/10 text-navy-500 hover:text-blue-400 transition-colors"
+                      title="Edit review"
+                    >
+                      <EditIcon />
+                    </button>
+                    <button
+                      onClick={() => remove(r.id)}
+                      className="p-1.5 rounded-lg hover:bg-red-500/10 text-navy-500 hover:text-red-400 transition-colors"
+                      title="Delete review"
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                  <div className="text-gold-500/30 text-3xl font-serif leading-none mb-2 select-none">
+                    &ldquo;
+                  </div>
+                  <p className="text-navy-300 text-sm leading-relaxed mb-3 italic">
+                    {r.quote}
+                  </p>
+                  <p className="text-white text-sm font-medium">
+                    {r.name}{" "}
+                    <span className="text-gold-400/70 text-xs font-normal">
+                      — {r.achievement}
+                    </span>
+                  </p>
+                  <p className="text-navy-600 text-xs mt-2">
+                    {formatDate(r.createdAt)}
+                  </p>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -672,20 +819,27 @@ function GalleryTab() {
   const [caption, setCaption] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editCaption, setEditCaption] = useState("");
+  const [editImageFile, setEditImageFile] = useState<File | null>(null);
+  const [editPreview, setEditPreview] = useState<string | null>(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function load() {
+  const load = useCallback(async () => {
     try {
+      setLoading(true);
+      setError("");
       setItems(await getGalleryImages());
     } catch {
-      setError("Failed to load gallery.");
+      setError("Failed to load gallery. Check your MongoDB connection.");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] || null;
@@ -723,6 +877,53 @@ function GalleryTab() {
     }
   }
 
+  function startEdit(img: GalleryImage) {
+    setEditingId(img.id);
+    setEditCaption(img.caption || "");
+    setEditImageFile(null);
+    setEditPreview(null);
+  }
+
+  function handleEditFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] || null;
+    setEditImageFile(file);
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setEditPreview(ev.target?.result as string);
+      reader.readAsDataURL(file);
+    } else {
+      setEditPreview(null);
+    }
+  }
+
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingId) return;
+    setEditSubmitting(true);
+    try {
+      const updateData: Partial<GalleryImage> = { caption: editCaption };
+      if (editImageFile) {
+        const res = await uploadImage(editImageFile, "gallery");
+        updateData.url = res.url;
+        updateData.storagePath = res.path;
+        // Delete old image
+        const old = items.find((img) => img.id === editingId);
+        if (old?.storagePath) {
+          await deleteFromStorage(old.storagePath).catch(() => {});
+        }
+      }
+      await updateGalleryImage(editingId, updateData);
+      setEditingId(null);
+      setEditImageFile(null);
+      setEditPreview(null);
+      await load();
+    } catch {
+      alert("Failed to update gallery image");
+    } finally {
+      setEditSubmitting(false);
+    }
+  }
+
   async function remove(id: string, storagePath?: string) {
     if (!confirm("Delete this image?")) return;
     try {
@@ -735,7 +936,7 @@ function GalleryTab() {
   }
 
   if (loading) return <LoadingSpinner label="Loading gallery..." />;
-  if (error) return <ErrorBox message={error} />;
+  if (error) return <ErrorBox message={error} onRetry={load} />;
 
   return (
     <div>
@@ -746,12 +947,17 @@ function GalleryTab() {
             ({items.length} images)
           </span>
         </h2>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="btn-primary text-sm !py-2 !px-5"
-        >
-          <span>{showForm ? "Cancel" : "+ Upload Image"}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={load} className="text-sm text-navy-400 hover:text-gold-400 transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5">
+            <RefreshIcon /> Refresh
+          </button>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="btn-primary text-sm !py-2 !px-5"
+          >
+            <span>{showForm ? "Cancel" : "+ Upload Image"}</span>
+          </button>
+        </div>
       </div>
 
       <p className="text-navy-500 text-xs mb-6">
@@ -819,27 +1025,63 @@ function GalleryTab() {
               key={img.id}
               className="relative group rounded-xl overflow-hidden border border-white/5"
             >
-              <div className="aspect-[4/3]">
-                <img
-                  src={img.url}
-                  alt={img.caption || "Classroom"}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              {/* Overlay */}
-              <div className="absolute inset-0 bg-navy-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                <button
-                  onClick={() => remove(img.id, img.storagePath)}
-                  className="p-3 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 transition-colors"
-                  title="Delete image"
-                >
-                  <TrashIcon />
-                </button>
-              </div>
-              {img.caption && (
-                <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-navy-950/90 to-transparent">
-                  <p className="text-white text-xs">{img.caption}</p>
-                </div>
+              {editingId === img.id ? (
+                /* ── Edit Form ── */
+                <form onSubmit={handleEdit} className="p-4 space-y-3 bg-navy-900/80">
+                  <div className="aspect-[4/3] rounded-lg overflow-hidden border border-white/10">
+                    <img
+                      src={editPreview || img.url}
+                      alt={editCaption || "Classroom"}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-navy-400 mb-1">Replace Image (optional)</label>
+                    <input type="file" accept="image/*" onChange={handleEditFileChange} className="text-xs text-navy-300 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-gold-500/10 file:text-gold-400 file:text-xs file:cursor-pointer" />
+                  </div>
+                  <input type="text" placeholder="Caption" value={editCaption} onChange={(e) => setEditCaption(e.target.value)} className="input-field text-sm" />
+                  <div className="flex gap-2">
+                    <button type="submit" disabled={editSubmitting} className="btn-primary text-xs !py-2 !px-4 disabled:opacity-50">
+                      <span>{editSubmitting ? "Saving..." : "Save"}</span>
+                    </button>
+                    <button type="button" onClick={() => { setEditingId(null); setEditPreview(null); }} className="text-xs text-navy-400 hover:text-white px-3 py-2 rounded-lg hover:bg-white/5 transition-colors">
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                /* ── Display ── */
+                <>
+                  <div className="aspect-[4/3]">
+                    <img
+                      src={img.url}
+                      alt={img.caption || "Classroom"}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  {/* Overlay */}
+                  <div className="absolute inset-0 bg-navy-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                    <button
+                      onClick={() => startEdit(img)}
+                      className="p-3 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 transition-colors"
+                      title="Edit image"
+                    >
+                      <EditIcon />
+                    </button>
+                    <button
+                      onClick={() => remove(img.id, img.storagePath)}
+                      className="p-3 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 transition-colors"
+                      title="Delete image"
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                  {img.caption && (
+                    <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-navy-950/90 to-transparent">
+                      <p className="text-white text-xs">{img.caption}</p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ))}
@@ -865,10 +1107,15 @@ function LoadingSpinner({ label }: { label: string }) {
   );
 }
 
-function ErrorBox({ message }: { message: string }) {
+function ErrorBox({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-      ⚠️ {message}
+    <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center justify-between">
+      <span>⚠️ {message}</span>
+      {onRetry && (
+        <button onClick={onRetry} className="ml-4 px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-medium border border-red-500/20 transition-all">
+          Retry
+        </button>
+      )}
     </div>
   );
 }
@@ -902,19 +1149,59 @@ function TrashIcon() {
   );
 }
 
-function formatDate(timestamp: { toDate?: () => Date } | null | undefined): string {
-  if (!timestamp?.toDate) return "Just now";
-  try {
-    return timestamp.toDate().toLocaleDateString("en-IN", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return "Just now";
+function EditIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+    </svg>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+    </svg>
+  );
+}
+
+function formatDate(timestamp: unknown): string {
+  if (!timestamp) return "Just now";
+
+  // Handle Firestore Timestamp objects
+  if (typeof timestamp === "object" && timestamp !== null && "toDate" in timestamp) {
+    try {
+      const tsObj = timestamp as { toDate: () => Date };
+      return tsObj.toDate().toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "Just now";
+    }
   }
+
+  // Handle ISO date strings from MongoDB
+  if (typeof timestamp === "string") {
+    try {
+      const d = new Date(timestamp);
+      if (isNaN(d.getTime())) return "Just now";
+      return d.toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "Just now";
+    }
+  }
+
+  return "Just now";
 }
 
 /* ═══════════════════════════════════════════
@@ -936,19 +1223,20 @@ function AdminsTab({
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function load() {
+  const load = useCallback(async () => {
     try {
+      setLoading(true);
       setAdmins(await getAdmins());
     } catch {
       setError("Failed to load admin users");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -1488,4 +1776,3 @@ function AdminLoginForm({ adminEmail }: { adminEmail: string }) {
     </div>
   );
 }
-
