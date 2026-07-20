@@ -1758,16 +1758,31 @@ function AdminsTab({
     setSuccess("");
 
     try {
-      await createAdminUserAccount(form.email, form.password, form.name);
+      // 1. Add to MongoDB database so the admin user shows in admin panel list
       await addAdminUser({
         email: form.email,
         name: form.name,
         createdBy: currentUserEmail || "admin",
       });
 
-      setSuccess(`Admin user ${form.email} created successfully! They can now log in.`);
+      // 2. Try to create Firebase Auth email/password account
+      let notice = "";
+      try {
+        await createAdminUserAccount(form.email, form.password, form.name);
+      } catch (fbErr: unknown) {
+        const fbError = fbErr as { code?: string; message?: string };
+        if (fbError.code === "auth/operation-not-allowed") {
+          notice = " (Note: Enable 'Email/Password' in Firebase Console → Authentication → Sign-in method to allow direct password logins).";
+        } else if (fbError.code === "auth/email-already-in-use") {
+          notice = " (Firebase auth account already exists).";
+        } else {
+          console.warn("Firebase Auth creation notice:", fbError);
+        }
+      }
+
+      setSuccess(`Admin user ${form.email} added successfully!${notice}`);
       setForm({ name: "", email: "", password: "" });
-      load();
+      await load();
     } catch (err: unknown) {
       const e = err as { message?: string };
       setError(e.message || "Failed to create admin user");
