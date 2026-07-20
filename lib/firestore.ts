@@ -276,15 +276,90 @@ export async function deleteGalleryImage(id: string): Promise<void> {
    Image Upload / Delete (Firebase Storage)
    ═══════════════════════════════════════════ */
 
+async function compressImage(
+  file: File,
+  maxWidth = 1200,
+  maxHeight = 1200,
+  quality = 0.8
+): Promise<Blob> {
+  if (typeof window === "undefined" || file.type === "image/svg+xml" || file.size < 150 * 1024) {
+    return file;
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => resolve(file);
+
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxWidth || height > maxHeight) {
+        if (width > height) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        } else {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        resolve(file);
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            resolve(file);
+          }
+        },
+        "image/webp",
+        quality
+      );
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
 export async function uploadImage(
   file: File,
   folder: string,
 ): Promise<{ url: string; path: string }> {
-  const path = `${folder}/${Date.now()}_${file.name}`;
-  const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file);
-  const url = await getDownloadURL(storageRef);
-  return { url, path };
+  try {
+    const compressedBlob = await compressImage(file);
+    const nameWithoutExt = file.name.substring(0, file.name.lastIndexOf(".")) || file.name;
+    const sanitizedName = nameWithoutExt.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const isWebp = compressedBlob.type === "image/webp";
+    const path = `${folder}/${Date.now()}_${sanitizedName}${isWebp ? ".webp" : ""}`;
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, compressedBlob);
+    const url = await getDownloadURL(storageRef);
+    return { url, path };
+  } catch (err) {
+    console.warn("Compression/upload optimization error, using original file upload:", err);
+    const path = `${folder}/${Date.now()}_${file.name}`;
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, file);
+    const url = await getDownloadURL(storageRef);
+    return { url, path };
+  }
 }
 
 export async function deleteFromStorage(path: string): Promise<void> {
