@@ -73,8 +73,9 @@ export default function EnrollmentModal({ isOpen, onClose }: EnrollmentModalProp
     try {
       await addEnrollment(formData);
       setSuccess(true);
-    } catch {
-      setError("Failed to submit enrollment. Please try again or call us directly.");
+    } catch (err: unknown) {
+      const errorObj = err as Error;
+      setError(errorObj.message || "Failed to submit enrollment. Please try again or call us directly.");
     } finally {
       setLoading(false);
     }
