@@ -71,6 +71,76 @@ export async function deleteEnrollment(id: string): Promise<void> {
 }
 
 /* ═══════════════════════════════════════════
+   Courses (Direct MongoDB API)
+   ═══════════════════════════════════════════ */
+
+export interface Course {
+  id: string;
+  title: string;
+  classes: string;
+  description: string;
+  subjects: string[];
+  color: string;
+  accent: string;
+  border: string;
+  icon: string;
+  order: number;
+}
+
+export async function getCourses(): Promise<Course[]> {
+  const res = await fetch("/api/courses", { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error("Failed to fetch courses");
+  }
+  const items = await res.json();
+  if (Array.isArray(items)) {
+    return items.map((item: Record<string, unknown>) => ({
+      ...item,
+      id: String(item._id || item.id),
+    })) as Course[];
+  }
+  return [];
+}
+
+export async function addCourse(
+  data: Omit<Course, "id">
+): Promise<string> {
+  const res = await fetch("/api/courses", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    throw new Error("Failed to add course");
+  }
+  const json = await res.json();
+  return String(json.id || json._id);
+}
+
+export async function updateCourse(
+  id: string,
+  data: Partial<Course>
+): Promise<void> {
+  const res = await fetch(`/api/courses/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    throw new Error("Failed to update course");
+  }
+}
+
+export async function deleteCourse(id: string): Promise<void> {
+  const res = await fetch(`/api/courses/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    throw new Error("Failed to delete course");
+  }
+}
+
+/* ═══════════════════════════════════════════
    Teachers (Direct MongoDB API)
    ═══════════════════════════════════════════ */
 

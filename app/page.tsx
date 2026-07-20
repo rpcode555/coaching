@@ -9,9 +9,11 @@ import {
   getTeachers,
   getReviews,
   getGalleryImages,
+  getCourses,
   Teacher,
   Review,
   GalleryImage,
+  Course,
 } from "@/lib/db";
 
 /* ═══════════════════════════════════════════
@@ -180,7 +182,7 @@ const defaultTeachers = [
   },
 ];
 
-const coursesData = [
+const defaultCoursesData = [
   { title: "Foundation", classes: "Class 5 \u2013 7", description: "Build strong fundamentals and develop a love for learning from an early age.", subjects: ["Mathematics", "Science", "English", "Bengali"], color: "from-emerald-500/20 to-teal-500/10", accent: "text-emerald-400", border: "border-emerald-500/20", icon: "\uD83C\uDF31" },
   { title: "Madhyamik Prep", classes: "Class 8 \u2013 10", description: "Comprehensive preparation for board exams with focus on concept clarity.", subjects: ["Mathematics", "Physical Science", "Life Science", "English", "Bengali"], color: "from-blue-500/20 to-indigo-500/10", accent: "text-blue-400", border: "border-blue-500/20", icon: "\uD83D\uDCDA" },
   { title: "Higher Secondary", classes: "Class 11 \u2013 12", description: "Master advanced concepts and excel in your HS examinations.", subjects: ["Physics", "Chemistry", "Mathematics", "Biology", "Computer Science"], color: "from-purple-500/20 to-violet-500/10", accent: "text-purple-400", border: "border-purple-500/20", icon: "\uD83C\uDF93" },
@@ -210,6 +212,7 @@ export default function Home() {
   const [extraTeachers, setExtraTeachers] = useState<Teacher[]>([]);
   const [extraReviews, setExtraReviews] = useState<Review[]>([]);
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
+  const [dbCourses, setDbCourses] = useState<Course[]>([]);
 
   useEffect(() => {
     setMounted(true);
@@ -218,18 +221,22 @@ export default function Home() {
 
   async function loadDynamicData() {
     try {
-      const [teachers, reviews, images] = await Promise.all([
+      const [teachers, reviews, images, courses] = await Promise.all([
         getTeachers().catch(() => []),
         getReviews().catch(() => []),
         getGalleryImages().catch(() => []),
+        getCourses().catch(() => []),
       ]);
       setExtraTeachers(teachers);
       setExtraReviews(reviews);
       setGalleryImages(images);
+      setDbCourses(courses);
     } catch {
-      // Firestore may not be set up yet
+      // Database load fallback
     }
   }
+
+  const coursesData = dbCourses.length > 0 ? dbCourses : defaultCoursesData;
 
   /* Merge hardcoded + Firestore teachers */
   const allTeachers = [

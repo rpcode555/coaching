@@ -27,6 +27,11 @@ import {
   addAdminUser,
   deleteAdminUser,
   trackAdminLogin,
+  getCourses,
+  addCourse,
+  updateCourse,
+  deleteCourse,
+  Course,
   Enrollment,
   Teacher,
   Review,
@@ -34,10 +39,11 @@ import {
   AdminUser,
 } from "@/lib/db";
 
-type Tab = "enrollments" | "teachers" | "reviews" | "gallery" | "admins";
+type Tab = "enrollments" | "courses" | "teachers" | "reviews" | "gallery" | "admins";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "enrollments", label: "📋 Enrollments" },
+  { key: "courses", label: "📚 Courses" },
   { key: "teachers", label: "👨‍🏫 Teachers" },
   { key: "reviews", label: "⭐ Reviews" },
   { key: "gallery", label: "🖼️ Gallery" },
@@ -145,6 +151,7 @@ export default function AdminPage() {
       {/* ── Content ── */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === "enrollments" && <EnrollmentsTab />}
+        {activeTab === "courses" && <CoursesTab />}
         {activeTab === "teachers" && <TeachersTab />}
         {activeTab === "reviews" && <ReviewsTab />}
         {activeTab === "gallery" && <GalleryTab />}
@@ -282,6 +289,373 @@ function EnrollmentsTab() {
               <p className="text-navy-600 text-xs mt-3">
                 {formatDate(e.createdAt)}
               </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   COURSES TAB
+   ═══════════════════════════════════════════ */
+
+const THEMES: Record<string, { color: string; accent: string; border: string; label: string }> = {
+  emerald: {
+    label: "Emerald Green",
+    color: "from-emerald-500/20 to-teal-500/10",
+    accent: "text-emerald-400",
+    border: "border-emerald-500/20",
+  },
+  blue: {
+    label: "Ocean Blue",
+    color: "from-blue-500/20 to-indigo-500/10",
+    accent: "text-blue-400",
+    border: "border-blue-500/20",
+  },
+  purple: {
+    label: "Royal Purple",
+    color: "from-purple-500/20 to-violet-500/10",
+    accent: "text-purple-400",
+    border: "border-purple-500/20",
+  },
+  gold: {
+    label: "Golden Yellow",
+    color: "from-gold-500/20 to-amber-500/10",
+    accent: "text-gold-400",
+    border: "border-gold-500/20",
+  },
+};
+
+function CoursesTab() {
+  const [items, setItems] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({
+    title: "",
+    classes: "",
+    description: "",
+    subjects: "",
+    icon: "📚",
+    theme: "blue",
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    title: "",
+    classes: "",
+    description: "",
+    subjects: "",
+    icon: "📚",
+    theme: "blue",
+  });
+  const [editSubmitting, setEditSubmitting] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+      setItems(await getCourses());
+    } catch {
+      setError("Failed to load courses. Check your MongoDB connection.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const selectedTheme = THEMES[form.theme] || THEMES.blue;
+      const subjectsArray = form.subjects
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      await addCourse({
+        title: form.title,
+        classes: form.classes,
+        description: form.description,
+        subjects: subjectsArray,
+        color: selectedTheme.color,
+        accent: selectedTheme.accent,
+        border: selectedTheme.border,
+        icon: form.icon || "📚",
+        order: items.length,
+      });
+
+      setForm({
+        title: "",
+        classes: "",
+        description: "",
+        subjects: "",
+        icon: "📚",
+        theme: "blue",
+      });
+      setShowForm(false);
+      await load();
+    } catch {
+      alert("Failed to add course");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function startEdit(c: Course) {
+    let themeKey = "blue";
+    if (c.accent?.includes("emerald")) themeKey = "emerald";
+    else if (c.accent?.includes("purple")) themeKey = "purple";
+    else if (c.accent?.includes("gold")) themeKey = "gold";
+
+    setEditingId(c.id);
+    setEditForm({
+      title: c.title,
+      classes: c.classes,
+      description: c.description,
+      subjects: Array.isArray(c.subjects) ? c.subjects.join(", ") : "",
+      icon: c.icon || "📚",
+      theme: themeKey,
+    });
+  }
+
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingId) return;
+    setEditSubmitting(true);
+    try {
+      const selectedTheme = THEMES[editForm.theme] || THEMES.blue;
+      const subjectsArray = editForm.subjects
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      await updateCourse(editingId, {
+        title: editForm.title,
+        classes: editForm.classes,
+        description: editForm.description,
+        subjects: subjectsArray,
+        color: selectedTheme.color,
+        accent: selectedTheme.accent,
+        border: selectedTheme.border,
+        icon: editForm.icon || "📚",
+      });
+
+      setEditingId(null);
+      await load();
+    } catch {
+      alert("Failed to update course");
+    } finally {
+      setEditSubmitting(false);
+    }
+  }
+
+  async function remove(id: string) {
+    if (!confirm("Delete this course? It will be removed from your website.")) return;
+    try {
+      await deleteCourse(id);
+      setItems((prev) => prev.filter((c) => c.id !== id));
+    } catch {
+      alert("Failed to delete course");
+    }
+  }
+
+  if (loading) return <LoadingSpinner label="Loading courses..." />;
+  if (error) return <ErrorBox message={error} onRetry={load} />;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-bold text-white">
+          Courses We Offer{" "}
+          <span className="text-navy-400 text-sm font-normal">
+            ({items.length} active courses)
+          </span>
+        </h2>
+        <div className="flex items-center gap-2">
+          <button onClick={load} className="text-sm text-navy-400 hover:text-gold-400 transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5">
+            <RefreshIcon /> Refresh
+          </button>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="btn-primary text-sm !py-2 !px-5"
+          >
+            <span>{showForm ? "Cancel" : "+ Add Course"}</span>
+          </button>
+        </div>
+      </div>
+
+      <p className="text-navy-500 text-xs mb-6">
+        Manage the academic programs displayed on your main website.
+      </p>
+
+      {/* Add Form */}
+      {showForm && (
+        <form
+          onSubmit={handleAdd}
+          className="gradient-border p-6 rounded-xl mb-6 space-y-4 animate-slide-down"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <input
+              type="text"
+              placeholder="Course Title (e.g., Foundation) *"
+              value={form.title}
+              onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+              className="input-field"
+              required
+            />
+            <input
+              type="text"
+              placeholder="Classes (e.g., Class 5 – 7) *"
+              value={form.classes}
+              onChange={(e) => setForm((p) => ({ ...p, classes: e.target.value }))}
+              className="input-field"
+              required
+            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Icon (e.g. 📚, 🌱, 🎓) *"
+                value={form.icon}
+                onChange={(e) => setForm((p) => ({ ...p, icon: e.target.value }))}
+                className="input-field w-24 text-center"
+                required
+              />
+              <select
+                value={form.theme}
+                onChange={(e) => setForm((p) => ({ ...p, theme: e.target.value }))}
+                className="input-field flex-1"
+              >
+                {Object.entries(THEMES).map(([k, t]) => (
+                  <option key={k} value={k}>
+                    Theme: {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <textarea
+            placeholder="Course Description *"
+            value={form.description}
+            onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+            className="input-field"
+            rows={2}
+            required
+          />
+
+          <input
+            type="text"
+            placeholder="Subjects (comma separated e.g. Mathematics, Science, English) *"
+            value={form.subjects}
+            onChange={(e) => setForm((p) => ({ ...p, subjects: e.target.value }))}
+            className="input-field"
+            required
+          />
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="btn-primary text-sm !py-2.5 disabled:opacity-50"
+          >
+            <span>{submitting ? "Adding Course..." : "Add Course"}</span>
+          </button>
+        </form>
+      )}
+
+      {/* List */}
+      {items.length === 0 ? (
+        <EmptyState
+          icon="📚"
+          message='No courses found in database. Click "+ Add Course" to create your first program.'
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {items.map((c) => (
+            <div
+              key={c.id}
+              className={`relative rounded-xl bg-gradient-to-br ${c.color || "from-blue-500/20 to-indigo-500/10"} border ${c.border || "border-blue-500/20"} p-6 group transition-all`}
+            >
+              {editingId === c.id ? (
+                /* ── Edit Form ── */
+                <form onSubmit={handleEdit} className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <input type="text" placeholder="Title *" value={editForm.title} onChange={(e) => setEditForm((p) => ({ ...p, title: e.target.value }))} className="input-field text-sm" required />
+                    <input type="text" placeholder="Classes *" value={editForm.classes} onChange={(e) => setEditForm((p) => ({ ...p, classes: e.target.value }))} className="input-field text-sm" required />
+                    <div className="flex gap-2">
+                      <input type="text" placeholder="Icon *" value={editForm.icon} onChange={(e) => setEditForm((p) => ({ ...p, icon: e.target.value }))} className="input-field text-sm w-16 text-center" required />
+                      <select value={editForm.theme} onChange={(e) => setEditForm((p) => ({ ...p, theme: e.target.value }))} className="input-field text-sm flex-1">
+                        {Object.entries(THEMES).map(([k, t]) => (
+                          <option key={k} value={k}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <textarea placeholder="Description *" value={editForm.description} onChange={(e) => setEditForm((p) => ({ ...p, description: e.target.value }))} className="input-field text-sm" rows={2} required />
+                  <input type="text" placeholder="Subjects (comma separated) *" value={editForm.subjects} onChange={(e) => setEditForm((p) => ({ ...p, subjects: e.target.value }))} className="input-field text-sm" required />
+                  <div className="flex gap-2">
+                    <button type="submit" disabled={editSubmitting} className="btn-primary text-xs !py-2 !px-4 disabled:opacity-50">
+                      <span>{editSubmitting ? "Saving..." : "Save"}</span>
+                    </button>
+                    <button type="button" onClick={() => setEditingId(null)} className="text-xs text-navy-400 hover:text-white px-3 py-2 rounded-lg hover:bg-white/5 transition-colors">
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                /* ── Display ── */
+                <>
+                  <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                    <button
+                      onClick={() => startEdit(c)}
+                      className="p-1.5 rounded-lg hover:bg-blue-500/10 text-navy-300 hover:text-blue-400 transition-colors"
+                      title="Edit course"
+                    >
+                      <EditIcon />
+                    </button>
+                    <button
+                      onClick={() => remove(c.id)}
+                      className="p-1.5 rounded-lg hover:bg-red-500/10 text-navy-300 hover:text-red-400 transition-colors"
+                      title="Delete course"
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+
+                  <div className="flex items-start gap-4">
+                    <span className="text-3xl select-none">{c.icon || "📚"}</span>
+                    <div>
+                      <h3 className="text-lg font-bold text-white leading-snug">{c.title}</h3>
+                      <span className={`text-xs font-semibold ${c.accent || "text-blue-400"}`}>
+                        {c.classes}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-navy-300 text-xs leading-relaxed my-3">{c.description}</p>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {Array.isArray(c.subjects) &&
+                      c.subjects.map((s) => (
+                        <span
+                          key={s}
+                          className="text-[11px] px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-navy-200"
+                        >
+                          {s}
+                        </span>
+                      ))}
+                  </div>
+                </>
+              )}
             </div>
           ))}
         </div>
